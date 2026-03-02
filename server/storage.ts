@@ -1,38 +1,137 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  users, materials, medicineBatches, transfers, authenticityReports, feedback,
+  type User, type InsertUser,
+  type Material, type InsertMaterial,
+  type MedicineBatch, type InsertMedicineBatch,
+  type Transfer, type InsertTransfer,
+  type AuthenticityReport, type InsertAuthenticityReport,
+  type Feedback, type InsertFeedback
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  // Users
+  getUser(id: number): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getAllUsers(): Promise<User[]>;
+  updateUserStatus(id: number, isApproved: boolean, walletAddress?: string): Promise<User | undefined>;
+  
+  // Materials
+  getMaterials(): Promise<Material[]>;
+  createMaterial(material: InsertMaterial): Promise<Material>;
+
+  // Batches
+  getBatches(): Promise<MedicineBatch[]>;
+  getBatch(batchId: string): Promise<MedicineBatch | undefined>;
+  createBatch(batch: InsertMedicineBatch): Promise<MedicineBatch>;
+  updateBatchStatus(batchId: string, status: string): Promise<MedicineBatch | undefined>;
+
+  // Transfers
+  getTransfers(): Promise<Transfer[]>;
+  createTransfer(transfer: InsertTransfer): Promise<Transfer>;
+
+  // Authenticity
+  getAuthenticityReports(): Promise<AuthenticityReport[]>;
+  createAuthenticityReport(report: InsertAuthenticityReport): Promise<AuthenticityReport>;
+
+  // Feedback
+  getFeedback(): Promise<Feedback[]>;
+  createFeedback(fb: InsertFeedback): Promise<Feedback>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  // Users
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async updateUserStatus(id: number, isApproved: boolean, walletAddress?: string): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({ isApproved, ...(walletAddress ? { walletAddress } : {}) })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  // Materials
+  async getMaterials(): Promise<Material[]> {
+    return await db.select().from(materials);
+  }
+
+  async createMaterial(insertMaterial: InsertMaterial): Promise<Material> {
+    const [material] = await db.insert(materials).values(insertMaterial).returning();
+    return material;
+  }
+
+  // Batches
+  async getBatches(): Promise<MedicineBatch[]> {
+    return await db.select().from(medicineBatches);
+  }
+
+  async getBatch(batchId: string): Promise<MedicineBatch | undefined> {
+    const [batch] = await db.select().from(medicineBatches).where(eq(medicineBatches.batchId, batchId));
+    return batch;
+  }
+
+  async createBatch(insertBatch: InsertMedicineBatch): Promise<MedicineBatch> {
+    const [batch] = await db.insert(medicineBatches).values(insertBatch).returning();
+    return batch;
+  }
+
+  async updateBatchStatus(batchId: string, status: string): Promise<MedicineBatch | undefined> {
+    const [batch] = await db.update(medicineBatches)
+      .set({ status })
+      .where(eq(medicineBatches.batchId, batchId))
+      .returning();
+    return batch;
+  }
+
+  // Transfers
+  async getTransfers(): Promise<Transfer[]> {
+    return await db.select().from(transfers);
+  }
+
+  async createTransfer(insertTransfer: InsertTransfer): Promise<Transfer> {
+    const [transfer] = await db.insert(transfers).values(insertTransfer).returning();
+    return transfer;
+  }
+
+  // Authenticity
+  async getAuthenticityReports(): Promise<AuthenticityReport[]> {
+    return await db.select().from(authenticityReports);
+  }
+
+  async createAuthenticityReport(insertReport: InsertAuthenticityReport): Promise<AuthenticityReport> {
+    const [report] = await db.insert(authenticityReports).values(insertReport).returning();
+    return report;
+  }
+
+  // Feedback
+  async getFeedback(): Promise<Feedback[]> {
+    return await db.select().from(feedback);
+  }
+
+  async createFeedback(insertFb: InsertFeedback): Promise<Feedback> {
+    const [fb] = await db.insert(feedback).values(insertFb).returning();
+    return fb;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
