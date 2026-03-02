@@ -1,0 +1,472 @@
+REPLIT.AI — FULL PROJECT GENERATION PROMPT
+(Production-Ready Blockchain Pharmacy Supply Chain App)
+
+Build a COMPLETE, production-grade Blockchain-based Pharmacy Supply Chain Web Application with the following stack and functional requirements.
+
+⚙️ TECHNOLOGY STACK (MANDATORY)
+Frontend
+
+React.js
+
+HTML, CSS
+
+ethers.js (blockchain connection)
+
+NO QR scanners anywhere
+
+Backend
+
+Node.js
+
+Express
+
+JWT Authentication
+
+Multer (file uploads)
+
+Role-based access middleware
+
+Database
+
+MySQL (using Sequelize or raw SQL)
+
+Blockchain
+
+Solidity smart contracts
+
+Hardhat (compile + deploy)
+
+Ganache (local network)
+
+MetaMask integration
+
+Emit events for ALL blockchain actions
+
+🌌 GLOBAL NIGHT-SKY UI THEME (APPLY ACROSS ENTIRE PROJECT)
+
+Replit must generate a complete front-end theme with:
+
+Background
+
+Deep gradient:
+#0a0e2e → #1a0a3d → #2d1b69 → #0d1545
+
+SVG silhouettes of hills, grass, palm trees
+
+120+ animated star particles (CSS + JS)
+
+Glowing crescent moon SVG (top-right)
+
+Shooting star animation every 8s
+
+Constellation dot-line patterns
+
+Teal (#00d4aa) & violet (#7c3aed) glow blobs
+
+Glassmorphism cards everywhere
+
+Typography
+
+Google Fonts: Sora, DM Sans, Space Mono
+
+Global CSS Variables
+--bg-deep: #04071a;
+--bg-space: #080e2e;
+--bg-navy: #0d1545;
+--bg-violet: #1a0a3d;
+--bg-card: rgba(10,18,50,0.75);
+--border: rgba(255,255,255,0.08);
+--teal: #00d4aa;
+--cyan: #00b4d8;
+--violet: #7c3aed;
+--text: #dce8ff;
+--text-dim: #7a92c4;
+--amber: #f59e0b;
+--green: #10b981;
+--red: #ef4444;
+
+Apply this design globally to:
+
+Landing page
+
+Login/Register
+
+Identity creation
+
+Every dashboard
+
+Sidebar + navbar
+
+Cards, tables, forms
+
+🏠 LANDING PAGE — FULL REDESIGN
+Navbar
+
+Left: Teal glowing shield ⚕️ + "PHARMACHAIN" + "TRUST LAYER"
+
+Center: How It Works · Roles · Why PharmaChain · Stories
+
+Right: Login button + Get Started button
+
+Sticky + glassmorphism blur
+
+Hero Section
+
+Left:
+
+Badge: “● BLOCKCHAIN VERIFIED • PHARMA GRADE”
+
+Heading: Securing the Medicine Supply Chain
+
+Buttons:
+
+🦊 Connect MetaMask (primary)
+
+How It Works (ghost)
+
+Right:
+
+Silhouette figure with telescope
+
+Grass + hills
+
+Blue glow outline
+
+Subtle float animation
+
+Effects:
+
+120 star particles
+
+Moon SVG
+
+Shooting star
+
+Constellation background
+
+Stats Bar
+
+Glass strip with animated counters:
+
+12,847 Medicines Tracked
+
+99.8% Authenticity Rate
+
+4 Supply Chain Nodes
+
+<2 sec Verification Time
+
+Features Section
+
+4 glass cards:
+
+🔐 Immutable Records
+
+⚡ Real-Time Tracking
+
+🛡️ Anti-Counterfeit
+
+📊 Demand Intelligence
+
+🆔 IDENTITY CREATION / REGISTRATION
+
+Form fields:
+
+Name
+
+Email
+
+Phone
+
+Organization
+
+Role dropdown:
+
+Raw Material Distributor
+
+Manufacturer
+
+Distributor
+
+Pharmacy
+
+Customer
+
+Proof upload
+
+Password
+
+After registration:
+
+Show “Pending Admin Approval”
+
+Cannot access dashboards until approved
+
+🧑‍⚖️ ADMIN DASHBOARD
+
+Admin features:
+
+Approve/reject users
+
+Assign blockchain wallet
+
+View blockchain transactions
+
+View batch history & authenticity logs
+
+System-wide analytics
+
+Role management
+
+View customer feedback
+
+Map-based batch tracking
+
+🧱 RAW MATERIAL DISTRIBUTOR DASHBOARD
+
+Features:
+
+Add raw materials
+
+Transfer materials to manufacturer
+
+Track shipment status
+
+Blockchain proof
+
+Shortage prediction
+
+🏭 MANUFACTURER DASHBOARD
+
+Features:
+
+Receive materials
+
+Create medicine batches
+
+Stage tracking: Requested → Processing → Preparing → Packed → Ready To Ship
+
+Ship to distributors
+
+Audit trail
+
+Raw material usage
+
+Expiry alerts
+
+Pharmacy medicine request inbox
+
+🚚 DISTRIBUTOR DASHBOARD
+
+Features:
+
+Add medicine requests
+
+Receive batches
+
+Distribute to pharmacies
+
+Status timeline
+
+Pharmacy demand analytics
+
+Stock forecasting
+
+🏥 PHARMACY DASHBOARD
+
+Features:
+
+Receive batches
+
+Add to inventory
+
+Authenticity verification
+
+Flag suspicious batches
+
+Request medicines
+
+Expiry warnings
+
+👤 CUSTOMER PORTAL
+
+Features:
+
+Search by Batch ID
+
+Verify authenticity
+
+Full batch timeline
+
+Safety info
+
+Feedback system
+
+📦 BLOCKCHAIN SMART CONTRACTS
+
+Hardhat project must include contracts:
+
+Contracts
+
+IdentityContract
+
+MaterialContract
+
+MedicineBatchContract
+
+TransferContract
+
+AuthenticityContract
+
+Events
+
+BatchCreated
+
+MaterialAdded
+
+TransferInitiated
+
+TransferCompleted
+
+AuthenticityUpdated
+
+UserApproved
+
+Blockchain Stores
+
+identities
+
+materials
+
+batches
+
+transfers
+
+authenticity logs
+
+Frontend uses ethers.js for:
+
+Contract read/write
+
+Event listeners
+
+MetaMask integration
+
+🗄️ BACKEND STRUCTURE (Node + Express)
+
+Include:
+
+Middleware
+
+JWT auth
+
+role-based access
+
+file upload (multer)
+
+Routes
+
+/auth
+
+/admin
+
+/materials
+
+/batches
+
+/transfers
+
+/authenticity
+
+/feedback
+
+MySQL Tables
+
+users
+
+roles
+
+materials
+
+batches
+
+transfers
+
+expiry_logs
+
+authenticity_reports
+
+feedback
+
+⚛️ FRONTEND STRUCTURE (React)
+
+Required pages:
+
+Landing
+
+Login
+
+Register
+
+Identity Creation
+
+Admin Dashboard
+
+Manufacturer Dashboard
+
+Distributor Dashboard
+
+Pharmacy Dashboard
+
+Customer Portal
+
+Core components:
+
+Sidebar
+
+Navbar
+
+Stat cards
+
+Tables
+
+Shooting star component
+
+Starfield generator
+
+Glass card component
+
+MetaMask connect
+
+ProtectedRoute wrapper
+
+❗ CRITICAL RULES (Replit MUST follow)
+
+✔ Use Solidity + Hardhat + Ganache + MetaMask
+✔ Everything must be blockchain-verified
+✔ No QR scanner features
+✔ All tracking via blockchain IDs only
+✔ Generate clean folder structure
+✔ Backend, DB, contracts, frontend — ALL INCLUDED
+
+🏁 FINAL OUTPUT REPLIT MUST PRODUCE
+
+Replit should generate:
+
+Full-stack application scaffold
+
+React frontend with night-sky theme
+
+Solidity contracts + Hardhat config
+
+Ganache setup instructions
+
+Node/Express backend + controllers
+
+MySQL DB schema + seeds
+
+API routes + authentication
+
+Complete dashboards
+
+Event listeners for blockchain
