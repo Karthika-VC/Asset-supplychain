@@ -1,0 +1,141 @@
+Enhance the existing PharmaChain website into a working blockchain-enabled supply chain system.
+
+🔗 BLOCKCHAIN REQUIREMENTS
+
+Set up a lightweight blockchain folder using Hardhat, Solidity, and ethers.js.
+Include one Solidity file with these responsibilities:
+
+Register supply chain roles on blockchain:
+
+Raw material supplier
+
+Manufacturer
+
+Distributor
+
+Wholesaler
+
+Pharmacy
+
+Each registration on blockchain must store only:
+
+name
+
+organization name
+
+wallet address
+
+role
+
+blockchain timestamp
+
+Register medicine batches on blockchain with:
+
+batchId
+
+medicineName
+
+manufacturerWallet
+
+creationTimestamp
+
+Record movements of a batch through:
+
+supplier → manufacturer → distributor → wholesaler → pharmacy
+
+Add simple Hardhat scripts:
+
+compile
+
+deploy
+
+interact
+
+All blockchain data must be readable by the React UI using ethers.js and MetaMask.
+
+🗄️ MYSQL REQUIREMENTS
+
+Create a small Node.js + Express backend with MySQL (no heavy ORM).
+Use REST APIs to store extra details that should not go to blockchain:
+
+Extra details of registered supply chain members:
+
+email
+
+phone
+
+address
+
+uploaded documents
+
+Customer registration:
+
+name
+
+email
+
+password (bcrypt hashed)
+
+phone
+
+Medicine details saved in MySQL:
+
+ingredients list
+
+usage information
+
+disease it treats
+
+complete travel history text
+
+Backend routes must be clean and simple:
+
+POST /register/member
+
+POST /register/customer
+
+POST /medicine/details
+
+GET /medicine/details/:id
+
+🖥️ FRONTEND REQUIREMENTS
+
+Update your existing React website to:
+
+Add MetaMask connection button using ethers.js
+
+Add forms to:
+
+Register supply chain roles
+
+Register customers
+
+Register medicine
+
+Write the role registration form so:
+
+essential details go to blockchain
+
+extra details go to MySQL
+
+Make the UI show:
+
+Current connected MetaMask address
+
+Blockchain-verified registered roles
+
+Medicine creation and movement logs
+
+No QR scanner feature.
+
+🎨 THEME
+
+Keep existing UI structure but apply:
+
+Dark navy background
+
+Glassmorphism cards
+
+Teal accent color
+
+Sora + DM Sans fonts
