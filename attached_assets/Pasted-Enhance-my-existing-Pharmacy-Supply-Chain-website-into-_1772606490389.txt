@@ -1,0 +1,267 @@
+Enhance my existing Pharmacy Supply Chain website into a fully functioning Blockchain-integrated Web Application.
+Use the following exact architecture and requirements:
+
+🧱 TECH STACK TO USE
+Frontend
+
+React.js
+
+HTML + CSS
+
+ethers.js
+
+MetaMask integration
+
+Backend
+
+Node.js
+
+Express.js
+
+JWT Authentication
+
+Sequelize OR raw MySQL queries
+
+Database
+
+MySQL
+
+Blockchain
+
+Solidity
+
+Hardhat
+
+Ganache (local blockchain network)
+
+ethers.js for contract interaction
+
+🔐 BLOCKCHAIN REQUIREMENTS (MANDATORY)
+Smart Contracts to Build:
+
+Create Solidity contracts that store:
+
+1. Supply Chain Roles stored ON BLOCKCHAIN
+
+Store only the essential identity details:
+
+Raw Material Supplier
+
+Manufacturer
+
+Distributor
+
+Supplier
+
+Pharmacy
+
+For each, store on blockchain:
+
+uniqueID
+
+role
+
+wallet address
+
+registration timestamp
+
+approval status
+
+(Their full personal data stays in MySQL.)
+
+2. Medicine Registration stored ON BLOCKCHAIN
+
+For each medicine batch, store:
+
+batchID
+
+manufacturer wallet
+
+timestamp
+
+blockchain medicine record ID
+
+status (Created → Distributed → Delivered)
+
+Emit blockchain events:
+
+MedicineRegistered
+
+SupplierRegistered
+
+TransferUpdated
+
+DeliveryCompleted
+
+🗄️ MYSQL REQUIREMENTS (MANDATORY)
+Store ALL extended user details in MySQL:
+
+For raw material supplier, manufacturer, distributor, supplier, pharmacy store:
+
+name
+
+email
+
+phone
+
+address
+
+uploaded documents
+
+organization name
+
+any additional KYC details
+
+Also store customer registration in MySQL only:
+
+name
+
+email
+
+phone
+
+password (hashed)
+
+address
+
+Store medicine extended info in MySQL:
+
+batchID
+
+ingredients
+
+usage instructions
+
+expiry date
+
+production date
+
+destination history
+
+traveled-from → traveled-to route
+
+description
+
+🔗 FRONTEND REQUIREMENTS
+Integrate MetaMask:
+
+Detect MetaMask
+
+Connect wallet
+
+Show connected wallet address
+
+Restrict role dashboards based on blockchain identity
+
+📦 FEATURE IMPLEMENTATION (WHAT THE SITE MUST DO)
+1. Member Registration
+
+User fills a registration form
+
+Extended data goes to MySQL
+
+On admin approval, blockchain identity contract is called
+
+Blockchain stores essential identity + wallet address
+
+2. Medicine Registration
+
+Manufacturer enters:
+
+ingredients
+
+usage
+
+description
+
+batchID
+
+Save extended info to MySQL
+
+Save batch registration (batchID + manufacturer wallet) on blockchain
+
+3. Supply Chain Tracking
+
+For each medicine → blockchain should store:
+
+created
+
+transferred
+
+received
+
+delivered
+
+MySQL stores the detailed history:
+
+timestamps
+
+locations
+
+notes
+
+🧩 BACKEND API REQUIREMENTS
+
+Build Express routes for:
+
+User registration
+
+POST /register
+POST /login
+GET /role-dashboard
+
+Admin approvals
+
+POST /admin/approveUser
+POST /admin/rejectUser
+POST /admin/assignWallet
+
+Medicine
+
+POST /medicine/register
+POST /medicine/updateStatus
+GET /medicine/:batchID
+
+Blockchain Integration
+
+Using ethers.js:
+
+loadABI
+
+connect to contract
+
+call contract functions
+
+🏗️ FOLDER STRUCTURE REQUIRED
+project/
+ ├── client/ (React frontend)
+ ├── server/ (Node.js backend)
+ ├── blockchain/
+ │    ├── contracts/
+ │    ├── scripts/
+ │    ├── hardhat.config.js
+ │    └── artifacts/
+ └── database/
+      └── schema.sql
+🏁 WHAT REPLIT MUST GENERATE
+
+A complete, working full-stack system:
+
+✔ Solidity contracts
+✔ Hardhat environment
+✔ Ganache integration
+✔ MetaMask connection
+✔ Node.js backend APIs
+✔ MySQL database schema
+✔ React frontend dashboards
+✔ Full supply chain flow stored on blockchain
+✔ All extended details stored in MySQL
+🚫 RULES
+
+❌ Do NOT use QR scanners or camera features
+
+✔ Use batchID-based tracking only
+
+✔ Use ethers.js, not Web3.js
+
+✔ System must run end-to-end
