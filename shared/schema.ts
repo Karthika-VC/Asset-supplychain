@@ -1,71 +1,71 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { mysqlTable, varchar, text, int, boolean, timestamp } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // === TABLE DEFINITIONS ===
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  phone: text("phone").notNull(),
-  organization: text("organization").notNull(),
-  role: text("role").notNull(), // admin, material_distributor, manufacturer, distributor, pharmacy, customer
+export const users = mysqlTable("users", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  phone: varchar("phone", { length: 64 }).notNull(),
+  organization: varchar("organization", { length: 255 }).notNull(),
+  role: varchar("role", { length: 64 }).notNull(), // admin, material_distributor, manufacturer, distributor, pharmacy, customer
   proofUrl: text("proof_url"),
-  password: text("password").notNull(),
-  walletAddress: text("wallet_address"),
+  password: varchar("password", { length: 255 }).notNull(),
+  walletAddress: varchar("wallet_address", { length: 255 }),
   isApproved: boolean("is_approved").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
-export const materials = pgTable("materials", {
-  id: serial("id").primaryKey(),
-  batchId: text("batch_id").notNull().unique(),
-  name: text("name").notNull(),
-  supplierId: integer("supplier_id").notNull(),
-  status: text("status").notNull(), // registered, transferred
-  blockchainHash: text("blockchain_hash"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const materials = mysqlTable("materials", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: varchar("batch_id", { length: 128 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  supplierId: int("supplier_id").notNull(),
+  status: varchar("status", { length: 64 }).notNull(), // registered, transferred
+  blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
-export const medicineBatches = pgTable("medicine_batches", {
-  id: serial("id").primaryKey(),
-  batchId: text("batch_id").notNull().unique(),
-  name: text("name").notNull(),
-  manufacturerId: integer("manufacturer_id").notNull(),
-  materialBatchId: text("material_batch_id"),
-  status: text("status").notNull(), // Requested, Processing, Preparing, Packed, Ready To Ship, Shipped, Received
-  blockchainHash: text("blockchain_hash"),
-  expiryDate: timestamp("expiry_date"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const medicineBatches = mysqlTable("medicine_batches", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: varchar("batch_id", { length: 128 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  manufacturerId: int("manufacturer_id").notNull(),
+  materialBatchId: varchar("material_batch_id", { length: 128 }),
+  status: varchar("status", { length: 64 }).notNull(), // Requested, Processing, Preparing, Packed, Ready To Ship, Shipped, Received
+  blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  expiryDate: timestamp("expiry_date", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
-export const transfers = pgTable("transfers", {
-  id: serial("id").primaryKey(),
-  fromId: integer("from_id").notNull(),
-  toId: integer("to_id").notNull(),
-  entityType: text("entity_type").notNull(), // material, medicine
-  entityBatchId: text("entity_batch_id").notNull(),
-  status: text("status").notNull(), // initiated, completed
-  blockchainHash: text("blockchain_hash"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const transfers = mysqlTable("transfers", {
+  id: int("id").autoincrement().primaryKey(),
+  fromId: int("from_id").notNull(),
+  toId: int("to_id").notNull(),
+  entityType: varchar("entity_type", { length: 64 }).notNull(), // material, medicine
+  entityBatchId: varchar("entity_batch_id", { length: 128 }).notNull(),
+  status: varchar("status", { length: 64 }).notNull(), // initiated, completed
+  blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
-export const authenticityReports = pgTable("authenticity_reports", {
-  id: serial("id").primaryKey(),
-  batchId: text("batch_id").notNull(),
-  reportedBy: integer("reported_by").notNull(),
-  status: text("status").notNull(), // flagged, verified, suspicious
+export const authenticityReports = mysqlTable("authenticity_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: varchar("batch_id", { length: 128 }).notNull(),
+  reportedBy: int("reported_by").notNull(),
+  status: varchar("status", { length: 64 }).notNull(), // flagged, verified, suspicious
   comments: text("comments"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
-export const feedback = pgTable("feedback", {
-  id: serial("id").primaryKey(),
-  batchId: text("batch_id").notNull(),
-  customerId: integer("customer_id").notNull(),
-  rating: integer("rating").notNull(),
+export const feedback = mysqlTable("feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: varchar("batch_id", { length: 128 }).notNull(),
+  customerId: int("customer_id").notNull(),
+  rating: int("rating").notNull(),
   comments: text("comments"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
 // === BASE SCHEMAS ===
