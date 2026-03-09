@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type LoginRequest, type InsertUser } from "@shared/routes";
+import { api, type LoginRequest, type RegisterRequest } from "@shared/routes";
 import { authFetch, setToken, clearToken } from "@/lib/auth";
 import { useLocation } from "wouter";
 
@@ -49,7 +49,7 @@ export function useRegister() {
   const [, setLocation] = useLocation();
 
   return useMutation({
-    mutationFn: async (data: InsertUser) => {
+    mutationFn: async (data: RegisterRequest) => {
       const res = await authFetch(api.auth.register.path, {
         method: "POST",
         body: JSON.stringify(data),

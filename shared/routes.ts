@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { 
-  insertUserSchema, users,
+  users, roleValues,
   insertMaterialSchema, materials,
   insertMedicineBatchSchema, medicineBatches,
   insertTransferSchema, transfers,
@@ -35,12 +35,40 @@ export const blockchainTxMetaSchema = z.object({
   contractAddress: z.string().min(1),
 });
 
+export const registerRequestSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  phone: z.string().min(1),
+  organization: z.string().optional(),
+  role: z.enum(roleValues),
+  proofUrl: z.string().optional(),
+  walletAddress: z.string().optional(),
+  registrationTx: blockchainTxMetaSchema.optional(),
+  profile: z
+    .object({
+      licenseNumber: z.string().optional(),
+      permitNumber: z.string().optional(),
+      facilityName: z.string().optional(),
+      distributionCenterName: z.string().optional(),
+      pharmacyName: z.string().optional(),
+    })
+    .optional(),
+  approvalDocument: z
+    .object({
+      fileName: z.string().min(1),
+      mimeType: z.string().min(1),
+      dataUrl: z.string().min(1),
+    })
+    .optional(),
+});
+
 export const api = {
   auth: {
     register: {
       method: 'POST' as const,
       path: '/api/auth/register' as const,
-      input: insertUserSchema,
+      input: registerRequestSchema,
       responses: {
         201: z.object({ token: z.string(), user: z.custom<typeof users.$inferSelect>() }),
         400: errorSchemas.validation,
@@ -217,3 +245,5 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
   }
   return url;
 }
+
+export type RegisterRequest = z.infer<typeof registerRequestSchema>;

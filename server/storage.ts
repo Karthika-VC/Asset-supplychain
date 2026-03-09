@@ -1,12 +1,18 @@
 import { db } from "./db";
 import {
   users, materials, medicineBatches, transfers, authenticityReports, feedback,
+  manufacturers, distributors, pharmacies, customers, uploadedDocuments,
   type User, type InsertUser,
   type Material, type InsertMaterial,
   type MedicineBatch, type InsertMedicineBatch,
   type Transfer, type InsertTransfer,
   type AuthenticityReport, type InsertAuthenticityReport,
-  type Feedback, type InsertFeedback
+  type Feedback, type InsertFeedback,
+  type Manufacturer, type InsertManufacturer,
+  type Distributor, type InsertDistributor,
+  type Pharmacy, type InsertPharmacy,
+  type Customer, type InsertCustomer,
+  type UploadedDocument, type InsertUploadedDocument,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -58,6 +64,20 @@ export interface IStorage {
   // Feedback
   getFeedback(): Promise<Feedback[]>;
   createFeedback(fb: InsertFeedback): Promise<Feedback>;
+
+  // Role profiles
+  createManufacturerProfile(profile: InsertManufacturer): Promise<Manufacturer>;
+  createDistributorProfile(profile: InsertDistributor): Promise<Distributor>;
+  createPharmacyProfile(profile: InsertPharmacy): Promise<Pharmacy>;
+  createCustomerProfile(profile: InsertCustomer): Promise<Customer>;
+  updateBusinessProfileStatusByUser(
+    role: string,
+    userId: number,
+    approved: boolean,
+  ): Promise<void>;
+
+  // Documents
+  createUploadedDocument(doc: InsertUploadedDocument): Promise<UploadedDocument>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -182,6 +202,56 @@ export class DatabaseStorage implements IStorage {
   async createFeedback(insertFb: InsertFeedback): Promise<Feedback> {
     const [fb] = await db.insert(feedback).values(insertFb).returning();
     return fb;
+  }
+
+  async createManufacturerProfile(profile: InsertManufacturer): Promise<Manufacturer> {
+    const [created] = await db.insert(manufacturers).values(profile).returning();
+    return created;
+  }
+
+  async createDistributorProfile(profile: InsertDistributor): Promise<Distributor> {
+    const [created] = await db.insert(distributors).values(profile).returning();
+    return created;
+  }
+
+  async createPharmacyProfile(profile: InsertPharmacy): Promise<Pharmacy> {
+    const [created] = await db.insert(pharmacies).values(profile).returning();
+    return created;
+  }
+
+  async createCustomerProfile(profile: InsertCustomer): Promise<Customer> {
+    const [created] = await db.insert(customers).values(profile).returning();
+    return created;
+  }
+
+  async updateBusinessProfileStatusByUser(role: string, userId: number, approved: boolean): Promise<void> {
+    if (role === "manufacturer") {
+      await db
+        .update(manufacturers)
+        .set({ status: approved ? "approved" : "suspended" })
+        .where(eq(manufacturers.userId, userId));
+      return;
+    }
+
+    if (role === "distributor" || role === "material_distributor") {
+      await db
+        .update(distributors)
+        .set({ status: approved ? "approved" : "suspended" })
+        .where(eq(distributors.userId, userId));
+      return;
+    }
+
+    if (role === "pharmacy") {
+      await db
+        .update(pharmacies)
+        .set({ status: approved ? "approved" : "suspended" })
+        .where(eq(pharmacies.userId, userId));
+    }
+  }
+
+  async createUploadedDocument(doc: InsertUploadedDocument): Promise<UploadedDocument> {
+    const [created] = await db.insert(uploadedDocuments).values(doc).returning();
+    return created;
   }
 }
 

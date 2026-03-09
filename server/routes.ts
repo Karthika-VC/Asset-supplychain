@@ -39,6 +39,17 @@ function toPublicUser<T extends { password: string }>(user: T) {
   return safeUser;
 }
 
+function isBusinessRole(role: string): boolean {
+  return role !== "customer";
+}
+
+function mapDocumentEntityType(role: string): "manufacturer" | "distributor" | "pharmacy" | "user" {
+  if (role === "manufacturer") return "manufacturer";
+  if (role === "pharmacy") return "pharmacy";
+  if (role === "distributor" || role === "material_distributor") return "distributor";
+  return "user";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -58,11 +69,94 @@ export async function registerRoutes(
       return sendError(res, 409, "EMAIL_EXISTS", "Email already registered");
     }
 
+    const role = parsed.data.role;
+    const businessRole = isBusinessRole(role);
+    const organizationName = parsed.data.organization?.trim() || (role === "customer" ? "Individual Customer" : "");
+
+    if (businessRole) {
+      if (!organizationName) {
+        return sendError(res, 400, "VALIDATION_ERROR", "Organization is required for business roles");
+      }
+      if (!parsed.data.walletAddress || !parsed.data.registrationTx) {
+        return sendError(res, 400, "VALIDATION_ERROR", "Wallet address and on-chain registration are required for business roles");
+      }
+      if (!parsed.data.approvalDocument) {
+        return sendError(res, 400, "VALIDATION_ERROR", "Approval document upload is required for business roles");
+      }
+    }
+
     const hashedPassword = await hashPassword(parsed.data.password);
     const user = await storage.createUser({
-      ...parsed.data,
+      name: parsed.data.name,
+      email: parsed.data.email,
       password: hashedPassword,
+      phone: parsed.data.phone,
+      organization: organizationName,
+      role: parsed.data.role,
+      proofUrl: parsed.data.approvalDocument?.dataUrl || parsed.data.proofUrl,
+      walletAddress: parsed.data.walletAddress,
+      isApproved: businessRole ? false : true,
+      ...(parsed.data.registrationTx
+        ? {
+            approvalTxHash: parsed.data.registrationTx.txHash,
+            approvalChainId: parsed.data.registrationTx.chainId,
+            approvalBlockNumber: parsed.data.registrationTx.blockNumber,
+            approvalContractAddress: parsed.data.registrationTx.contractAddress,
+          }
+        : {}),
     });
+
+    if (role === "manufacturer") {
+      await storage.createManufacturerProfile({
+        userId: user.id,
+        facilityName: parsed.data.profile?.facilityName || organizationName,
+        licenseNumber: parsed.data.profile?.licenseNumber || "PENDING",
+        status: "pending",
+        registrationTxHash: parsed.data.registrationTx?.txHash,
+        registrationChainId: parsed.data.registrationTx?.chainId,
+        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
+        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
+      });
+    } else if (role === "distributor" || role === "material_distributor") {
+      await storage.createDistributorProfile({
+        userId: user.id,
+        distributionCenterName: parsed.data.profile?.distributionCenterName || organizationName,
+        licenseNumber: parsed.data.profile?.licenseNumber || "PENDING",
+        status: "pending",
+        registrationTxHash: parsed.data.registrationTx?.txHash,
+        registrationChainId: parsed.data.registrationTx?.chainId,
+        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
+        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
+      });
+    } else if (role === "pharmacy") {
+      await storage.createPharmacyProfile({
+        userId: user.id,
+        pharmacyName: parsed.data.profile?.pharmacyName || organizationName,
+        permitNumber: parsed.data.profile?.permitNumber || "PENDING",
+        status: "pending",
+        registrationTxHash: parsed.data.registrationTx?.txHash,
+        registrationChainId: parsed.data.registrationTx?.chainId,
+        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
+        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
+      });
+    } else if (role === "customer") {
+      await storage.createCustomerProfile({
+        userId: user.id,
+        status: "active",
+      });
+    }
+
+    if (businessRole && parsed.data.approvalDocument) {
+      await storage.createUploadedDocument({
+        uploaderUserId: user.id,
+        entityType: mapDocumentEntityType(role),
+        entityId: user.id,
+        documentType: "business_license",
+        fileUrl: parsed.data.approvalDocument.dataUrl,
+        mimeType: parsed.data.approvalDocument.mimeType,
+        status: "uploaded",
+      });
+    }
 
     const token = signAuthToken({ userId: user.id, role: user.role });
     res.status(201).json({ token, user: toPublicUser(user) });
@@ -132,6 +226,8 @@ export async function registerRoutes(
     if (!user) {
       return sendError(res, 404, "NOT_FOUND", "User not found");
     }
+
+    await storage.updateBusinessProfileStatusByUser(user.role, user.id, parsed.data.isApproved);
 
     res.json(toPublicUser(user));
   });
