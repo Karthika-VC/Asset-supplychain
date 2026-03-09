@@ -395,7 +395,7 @@ export async function registerRoutes(
   app.get(
     api.authenticity.list.path,
     requireAuth,
-    requireRole("admin", "pharmacy"),
+    requireRole("admin", "pharmacy", "customer"),
     async (req, res) => {
     const items = await storage.getAuthenticityReports();
     res.json(items);
