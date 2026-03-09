@@ -86,6 +86,10 @@ export const users = mysqlTable("users", {
   proofUrl: text("proof_url"),
   password: varchar("password", { length: 255 }).notNull(),
   walletAddress: varchar("wallet_address", { length: 255 }),
+  approvalTxHash: varchar("approval_tx_hash", { length: 255 }),
+  approvalChainId: int("approval_chain_id"),
+  approvalBlockNumber: int("approval_block_number"),
+  approvalContractAddress: varchar("approval_contract_address", { length: 255 }),
   isApproved: boolean("is_approved").default(false),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 }, (table) => ({
@@ -100,6 +104,10 @@ export const materials = mysqlTable("materials", {
   supplierId: int("supplier_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   status: mysqlEnum("status", materialStatusValues).notNull(),
   blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  txHash: varchar("tx_hash", { length: 255 }),
+  chainId: int("chain_id"),
+  blockNumber: int("block_number"),
+  contractAddress: varchar("contract_address", { length: 255 }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 }, (table) => ({
   batchUniqueIdx: uniqueIndex("materials_batch_unique_idx").on(table.batchId),
@@ -115,6 +123,10 @@ export const medicineBatches = mysqlTable("medicine_batches", {
   materialBatchId: varchar("material_batch_id", { length: 128 }).references(() => materials.batchId, { onDelete: "set null" }),
   status: mysqlEnum("status", batchStatusValues).notNull(),
   blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  txHash: varchar("tx_hash", { length: 255 }),
+  chainId: int("chain_id"),
+  blockNumber: int("block_number"),
+  contractAddress: varchar("contract_address", { length: 255 }),
   expiryDate: timestamp("expiry_date", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 }, (table) => ({
@@ -132,6 +144,10 @@ export const transfers = mysqlTable("transfers", {
   entityBatchId: varchar("entity_batch_id", { length: 128 }).notNull(),
   status: mysqlEnum("status", transferStatusValues).notNull(),
   blockchainHash: varchar("blockchain_hash", { length: 255 }),
+  txHash: varchar("tx_hash", { length: 255 }),
+  chainId: int("chain_id"),
+  blockNumber: int("block_number"),
+  contractAddress: varchar("contract_address", { length: 255 }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 }, (table) => ({
   fromIdx: index("transfers_from_idx").on(table.fromId),
@@ -490,4 +506,8 @@ export type AuthResponse = {
 export type ApproveUserRequest = {
   walletAddress?: string;
   isApproved: boolean;
+  txHash?: string;
+  chainId?: number;
+  blockNumber?: number;
+  contractAddress?: string;
 };

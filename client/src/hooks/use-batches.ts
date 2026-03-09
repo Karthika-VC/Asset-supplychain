@@ -49,11 +49,25 @@ export function useUpdateBatchStatus() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ batchId, status }: { batchId: string, status: string }) => {
+    mutationFn: async ({
+      batchId,
+      status,
+      txHash,
+      chainId,
+      blockNumber,
+      contractAddress,
+    }: {
+      batchId: string;
+      status: string;
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    }) => {
       const url = buildUrl(api.batches.updateStatus.path, { batchId });
       const res = await authFetch(url, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, txHash, chainId, blockNumber, contractAddress }),
       });
       if (!res.ok) throw new Error("Failed to update batch status");
       return api.batches.updateStatus.responses[200].parse(await res.json());

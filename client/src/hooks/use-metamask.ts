@@ -2,6 +2,15 @@ import { useState, useCallback } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 
+export type ChainTxResult = {
+  from: string;
+  to: string;
+  txHash: string;
+  chainId: number;
+  blockNumber: number;
+  contractAddress: string;
+};
+
 export function useMetaMask() {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -42,39 +51,60 @@ export function useMetaMask() {
     return null;
   }, [toast]);
 
-  // Simulates a blockchain transaction and returns a mock tx hash
-  const mockTransaction = useCallback(async (actionName: string): Promise<string> => {
-    if (!address) {
-      const newAddress = await connect();
-      if (!newAddress) throw new Error("Wallet connection required for blockchain transaction.");
-    }
+  const sendTransaction = useCallback(
+    async (actionName: string): Promise<ChainTxResult> => {
+      if (typeof window.ethereum === "undefined") {
+        throw new Error("MetaMask is required");
+      }
 
-    toast({
-      title: "Awaiting Signature...",
-      description: `Please sign the transaction for: ${actionName}`,
-    });
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
 
-    // Simulate user reading MetaMask prompt and clicking sign
-    await new Promise(r => setTimeout(r, 1500));
-    
-    toast({
-      title: "Transaction Submitted",
-      description: "Waiting for blockchain confirmation...",
-    });
+      if (!address || address.toLowerCase() !== signerAddress.toLowerCase()) {
+        setAddress(signerAddress);
+      }
 
-    // Simulate mining delay
-    await new Promise(r => setTimeout(r, 2000));
+      toast({
+        title: "Awaiting Signature...",
+        description: `Please sign the transaction for: ${actionName}`,
+      });
 
-    const hash = "0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-    
-    toast({
-      title: "Transaction Confirmed! 🔗",
-      description: `Hash: ${hash.slice(0, 10)}...${hash.slice(-8)}`,
-      className: "bg-teal-950 border-teal-500 text-teal-100",
-    });
+      const tx = await signer.sendTransaction({
+        to: signerAddress,
+        value: 0n,
+      });
 
-    return hash;
-  }, [address, connect, toast]);
+      toast({
+        title: "Transaction Submitted",
+        description: `Hash: ${tx.hash.slice(0, 12)}...`,
+      });
 
-  return { address, isConnecting, connect, mockTransaction };
+      const receipt = await tx.wait();
+      if (!receipt || !receipt.blockNumber) {
+        throw new Error("Transaction was not mined");
+      }
+
+      const network = await provider.getNetwork();
+      const result: ChainTxResult = {
+        from: signerAddress,
+        to: tx.to ?? signerAddress,
+        txHash: tx.hash,
+        chainId: Number(network.chainId),
+        blockNumber: receipt.blockNumber,
+        contractAddress: tx.to ?? signerAddress,
+      };
+
+      toast({
+        title: "Transaction Confirmed",
+        description: `Block #${receipt.blockNumber}`,
+        className: "bg-teal-950 border-teal-500 text-teal-100",
+      });
+
+      return result;
+    },
+    [address, toast],
+  );
+
+  return { address, isConnecting, connect, sendTransaction };
 }

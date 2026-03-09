@@ -7,12 +7,20 @@ import { CheckCircle, XCircle, Shield, Loader2 } from "lucide-react";
 export default function AdminDashboard() {
   const { data: users, isLoading } = useUsers();
   const { mutate: approve, isPending } = useApproveUser();
-  const { mockTransaction } = useMetaMask();
+  const { sendTransaction, address } = useMetaMask();
 
   const handleApprove = async (id: number) => {
     try {
-      const hash = await mockTransaction("Approve Business Entity");
-      approve({ id, isApproved: true, walletAddress: hash }); // Simulating wallet linking on approval
+      const tx = await sendTransaction("Approve Business Entity");
+      approve({
+        id,
+        isApproved: true,
+        walletAddress: address ?? tx.from,
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
     } catch (e) {
       console.error(e);
     }

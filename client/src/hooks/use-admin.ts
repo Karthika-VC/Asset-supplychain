@@ -17,11 +17,27 @@ export function useApproveUser() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, isApproved, walletAddress }: { id: number, isApproved: boolean, walletAddress?: string }) => {
+    mutationFn: async ({
+      id,
+      isApproved,
+      walletAddress,
+      txHash,
+      chainId,
+      blockNumber,
+      contractAddress,
+    }: {
+      id: number;
+      isApproved: boolean;
+      walletAddress?: string;
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    }) => {
       const url = buildUrl(api.admin.approveUser.path, { id });
       const res = await authFetch(url, {
         method: "PATCH",
-        body: JSON.stringify({ isApproved, walletAddress }),
+        body: JSON.stringify({ isApproved, walletAddress, txHash, chainId, blockNumber, contractAddress }),
       });
       if (!res.ok) throw new Error("Failed to approve user");
       return api.admin.approveUser.responses[200].parse(await res.json());

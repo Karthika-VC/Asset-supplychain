@@ -28,6 +28,13 @@ export const errorSchemas = {
   }),
 };
 
+export const blockchainTxMetaSchema = z.object({
+  txHash: z.string().min(1),
+  chainId: z.number().int().positive(),
+  blockNumber: z.number().int().positive(),
+  contractAddress: z.string().min(1),
+});
+
 export const api = {
   auth: {
     register: {
@@ -72,6 +79,10 @@ export const api = {
       input: z.object({
         isApproved: z.boolean(),
         walletAddress: z.string().optional(),
+        txHash: z.string().optional(),
+        chainId: z.number().int().positive().optional(),
+        blockNumber: z.number().int().positive().optional(),
+        contractAddress: z.string().optional(),
       }),
       responses: {
         200: z.custom<typeof users.$inferSelect>(),
@@ -126,7 +137,13 @@ export const api = {
     updateStatus: {
       method: 'PATCH' as const,
       path: '/api/batches/:batchId/status' as const,
-      input: z.object({ status: z.string() }),
+      input: z.object({
+        status: z.string(),
+        txHash: z.string().optional(),
+        chainId: z.number().int().positive().optional(),
+        blockNumber: z.number().int().positive().optional(),
+        contractAddress: z.string().optional(),
+      }),
       responses: {
         200: z.custom<typeof medicineBatches.$inferSelect>(),
         404: errorSchemas.notFound,

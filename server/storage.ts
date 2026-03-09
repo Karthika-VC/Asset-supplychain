@@ -16,7 +16,17 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
-  updateUserStatus(id: number, isApproved: boolean, walletAddress?: string): Promise<User | undefined>;
+  updateUserStatus(
+    id: number,
+    isApproved: boolean,
+    walletAddress?: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<User | undefined>;
   
   // Materials
   getMaterials(): Promise<Material[]>;
@@ -26,7 +36,16 @@ export interface IStorage {
   getBatches(): Promise<MedicineBatch[]>;
   getBatch(batchId: string): Promise<MedicineBatch | undefined>;
   createBatch(batch: InsertMedicineBatch): Promise<MedicineBatch>;
-  updateBatchStatus(batchId: string, status: string): Promise<MedicineBatch | undefined>;
+  updateBatchStatus(
+    batchId: string,
+    status: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<MedicineBatch | undefined>;
 
   // Transfers
   getTransfers(): Promise<Transfer[]>;
@@ -62,9 +81,26 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async updateUserStatus(id: number, isApproved: boolean, walletAddress?: string): Promise<User | undefined> {
+  async updateUserStatus(
+    id: number,
+    isApproved: boolean,
+    walletAddress?: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<User | undefined> {
     const [user] = await db.update(users)
-      .set({ isApproved, ...(walletAddress ? { walletAddress } : {}) })
+      .set({
+        isApproved,
+        ...(walletAddress ? { walletAddress } : {}),
+        ...(txMeta?.txHash ? { approvalTxHash: txMeta.txHash } : {}),
+        ...(typeof txMeta?.chainId === "number" ? { approvalChainId: txMeta.chainId } : {}),
+        ...(typeof txMeta?.blockNumber === "number" ? { approvalBlockNumber: txMeta.blockNumber } : {}),
+        ...(txMeta?.contractAddress ? { approvalContractAddress: txMeta.contractAddress } : {}),
+      })
       .where(eq(users.id, id))
       .returning();
     return user;
@@ -95,9 +131,24 @@ export class DatabaseStorage implements IStorage {
     return batch;
   }
 
-  async updateBatchStatus(batchId: string, status: string): Promise<MedicineBatch | undefined> {
+  async updateBatchStatus(
+    batchId: string,
+    status: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<MedicineBatch | undefined> {
     const [batch] = await db.update(medicineBatches)
-      .set({ status })
+      .set({
+        status,
+        ...(txMeta?.txHash ? { txHash: txMeta.txHash, blockchainHash: txMeta.txHash } : {}),
+        ...(typeof txMeta?.chainId === "number" ? { chainId: txMeta.chainId } : {}),
+        ...(typeof txMeta?.blockNumber === "number" ? { blockNumber: txMeta.blockNumber } : {}),
+        ...(txMeta?.contractAddress ? { contractAddress: txMeta.contractAddress } : {}),
+      })
       .where(eq(medicineBatches.batchId, batchId))
       .returning();
     return batch;

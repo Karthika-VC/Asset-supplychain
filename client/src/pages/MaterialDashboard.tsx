@@ -13,7 +13,7 @@ export default function MaterialDashboard() {
   const { data: user } = useUser();
   const { data: materials, isLoading } = useMaterials();
   const { mutate: createMaterial, isPending } = useCreateMaterial();
-  const { mockTransaction } = useMetaMask();
+  const { sendTransaction } = useMetaMask();
 
   const [name, setName] = useState("");
   const [batchId, setBatchId] = useState("");
@@ -21,13 +21,17 @@ export default function MaterialDashboard() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const hash = await mockTransaction("Register Raw Material");
+      const tx = await sendTransaction("Register Raw Material");
       createMaterial({
         name,
         batchId,
         supplierId: user!.id,
         status: "registered",
-        blockchainHash: hash,
+        blockchainHash: tx.txHash,
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
       });
       setName("");
       setBatchId("");

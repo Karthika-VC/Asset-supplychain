@@ -10,15 +10,22 @@ export default function DistributorDashboard() {
   const { data: user } = useUser();
   const { data: batches } = useBatches();
   const { mutate: updateStatus } = useUpdateBatchStatus();
-  const { mockTransaction } = useMetaMask();
+  const { sendTransaction } = useMetaMask();
 
   // Distributors see "Ready To Ship" or "Shipped"
   const relevantBatches = batches?.filter(b => ["Ready To Ship", "Shipped"].includes(b.status)) || [];
 
   const handleAction = async (batchId: string, action: string, newStatus: string) => {
     try {
-      await mockTransaction(action);
-      updateStatus({ batchId, status: newStatus });
+      const tx = await sendTransaction(action);
+      updateStatus({
+        batchId,
+        status: newStatus,
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
     } catch (e) {
       console.error(e);
     }

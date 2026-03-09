@@ -123,7 +123,12 @@ export async function registerRoutes(
       });
     }
 
-    const user = await storage.updateUserStatus(id, parsed.data.isApproved, parsed.data.walletAddress);
+    const user = await storage.updateUserStatus(id, parsed.data.isApproved, parsed.data.walletAddress, {
+      txHash: parsed.data.txHash,
+      chainId: parsed.data.chainId,
+      blockNumber: parsed.data.blockNumber,
+      contractAddress: parsed.data.contractAddress,
+    });
     if (!user) {
       return sendError(res, 404, "NOT_FOUND", "User not found");
     }
@@ -220,7 +225,12 @@ export async function registerRoutes(
         });
       }
 
-      const item = await storage.updateBatchStatus(req.params.batchId, parsed.data.status);
+      const item = await storage.updateBatchStatus(req.params.batchId, parsed.data.status, {
+        txHash: parsed.data.txHash,
+        chainId: parsed.data.chainId,
+        blockNumber: parsed.data.blockNumber,
+        contractAddress: parsed.data.contractAddress,
+      });
       if (!item) return sendError(res, 404, "NOT_FOUND", "Batch not found");
       res.json(item);
     },

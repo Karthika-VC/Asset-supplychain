@@ -10,15 +10,22 @@ export default function PharmacyDashboard() {
   const { data: user } = useUser();
   const { data: batches } = useBatches();
   const { mutate: updateStatus } = useUpdateBatchStatus();
-  const { mockTransaction } = useMetaMask();
+  const { sendTransaction } = useMetaMask();
 
   // Pharmacies receive "Shipped" and mark "Received"
   const incomingBatches = batches?.filter(b => ["Shipped", "Received"].includes(b.status)) || [];
 
   const handleReceive = async (batchId: string) => {
     try {
-      await mockTransaction("Acknowledge Receipt");
-      updateStatus({ batchId, status: "Received" });
+      const tx = await sendTransaction("Acknowledge Receipt");
+      updateStatus({
+        batchId,
+        status: "Received",
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
     } catch (e) {
       console.error(e);
     }

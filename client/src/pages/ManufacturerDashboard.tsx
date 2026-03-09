@@ -16,7 +16,7 @@ export default function ManufacturerDashboard() {
   const { data: batches } = useBatches();
   const { mutate: createBatch, isPending: isCreating } = useCreateBatch();
   const { mutate: updateStatus } = useUpdateBatchStatus();
-  const { mockTransaction } = useMetaMask();
+  const { sendTransaction } = useMetaMask();
 
   const [name, setName] = useState("");
   const [batchId, setBatchId] = useState("");
@@ -25,14 +25,18 @@ export default function ManufacturerDashboard() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const hash = await mockTransaction("Initialize Medicine Batch");
+      const tx = await sendTransaction("Initialize Medicine Batch");
       createBatch({
         name,
         batchId,
         manufacturerId: user!.id,
         materialBatchId: matId,
         status: "Processing",
-        blockchainHash: hash,
+        blockchainHash: tx.txHash,
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
       });
       setName(""); setBatchId(""); setMatId("");
     } catch (e) {
@@ -46,8 +50,15 @@ export default function ManufacturerDashboard() {
     const nextStatus = STATUS_WORKFLOW[idx + 1];
     
     try {
-      await mockTransaction(`Update status to ${nextStatus}`);
-      updateStatus({ batchId: bId, status: nextStatus });
+      const tx = await sendTransaction(`Update status to ${nextStatus}`);
+      updateStatus({
+        batchId: bId,
+        status: nextStatus,
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
     } catch (e) {
       console.error(e);
     }
