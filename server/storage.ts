@@ -56,6 +56,7 @@ export interface IStorage {
   // Transfers
   getTransfers(): Promise<Transfer[]>;
   createTransfer(transfer: InsertTransfer): Promise<Transfer>;
+  updateTransferStatus(id: number, status: string): Promise<Transfer | undefined>;
 
   // Authenticity
   getAuthenticityReports(): Promise<AuthenticityReport[]>;
@@ -181,6 +182,15 @@ export class DatabaseStorage implements IStorage {
 
   async createTransfer(insertTransfer: InsertTransfer): Promise<Transfer> {
     const [transfer] = await db.insert(transfers).values(insertTransfer).returning();
+    return transfer;
+  }
+
+  async updateTransferStatus(id: number, status: string): Promise<Transfer | undefined> {
+    const [transfer] = await db
+      .update(transfers)
+      .set({ status })
+      .where(eq(transfers.id, id))
+      .returning();
     return transfer;
   }
 

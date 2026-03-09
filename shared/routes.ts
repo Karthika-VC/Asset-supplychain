@@ -194,6 +194,15 @@ export const api = {
         201: z.custom<typeof transfers.$inferSelect>(),
         400: errorSchemas.validation,
       }
+    },
+    updateStatus: {
+      method: 'PATCH' as const,
+      path: '/api/transfers/:id/status' as const,
+      input: z.object({ status: z.string() }),
+      responses: {
+        200: z.custom<typeof transfers.$inferSelect>(),
+        404: errorSchemas.notFound,
+      }
     }
   },
   authenticity: {

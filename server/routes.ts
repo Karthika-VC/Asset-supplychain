@@ -248,7 +248,7 @@ export async function registerRoutes(
     api.materials.create.path,
     requireAuth,
     requireApprovedBusiness,
-    requireRole("admin", "material_distributor"),
+    requireRole("admin", "material_distributor", "manufacturer"),
     async (req, res) => {
       const parsed = parseInput(api.materials.create.input, req.body);
       if (!parsed.success) {
@@ -360,6 +360,34 @@ export async function registerRoutes(
       }
       const item = await storage.createTransfer(parsed.data);
       res.status(201).json(item);
+    },
+  );
+
+  app.patch(
+    api.transfers.updateStatus.path,
+    requireAuth,
+    requireApprovedBusiness,
+    requireRole("admin", "manufacturer", "distributor", "pharmacy"),
+    async (req, res) => {
+      const parsed = parseInput(api.transfers.updateStatus.input, req.body);
+      if (!parsed.success) {
+        const firstError = parsed.error.errors[0];
+        return sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+          field: firstError?.path.join("."),
+          issue: firstError?.message,
+        });
+      }
+
+      const transferId = Number(req.params.id);
+      if (!Number.isInteger(transferId) || transferId <= 0) {
+        return sendError(res, 400, "VALIDATION_ERROR", "Invalid transfer id", {
+          field: "id",
+        });
+      }
+
+      const item = await storage.updateTransferStatus(transferId, parsed.data.status);
+      if (!item) return sendError(res, 404, "NOT_FOUND", "Transfer not found");
+      res.json(item);
     },
   );
 

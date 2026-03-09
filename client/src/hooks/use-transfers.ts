@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type InsertTransfer } from "@shared/routes";
+import { api, buildUrl, type InsertTransfer } from "@shared/routes";
 import { authFetch } from "@/lib/auth";
 
 export function useTransfers() {
@@ -24,6 +24,25 @@ export function useCreateTransfer() {
       });
       if (!res.ok) throw new Error("Failed to record transfer");
       return api.transfers.create.responses[201].parse(await res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.transfers.list.path] });
+    },
+  });
+}
+
+export function useUpdateTransferStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const url = buildUrl(api.transfers.updateStatus.path, { id });
+      const res = await authFetch(url, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update transfer status");
+      return api.transfers.updateStatus.responses[200].parse(await res.json());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.transfers.list.path] });
