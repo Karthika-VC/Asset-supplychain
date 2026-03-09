@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import crypto from "crypto";
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,6 +22,11 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+app.use((_req, res, next) => {
+  res.locals.requestId = crypto.randomUUID();
+  next();
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -64,7 +70,11 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const isBodyParseError =
+      err instanceof SyntaxError && typeof err.status === "number" && "body" in err;
+    const message = isBodyParseError
+      ? "Malformed JSON request body"
+      : err.message || "Internal Server Error";
 
     console.error("Internal Server Error:", err);
 
@@ -72,7 +82,14 @@ app.use((req, res, next) => {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json({
+      error: {
+        code: isBodyParseError ? "INVALID_JSON" : "INTERNAL_ERROR",
+        message,
+        requestId: res.locals.requestId ?? null,
+        timestamp: new Date().toISOString(),
+      },
+    });
   });
 
   // importantly only setup vite in development and after
