@@ -94,7 +94,14 @@ export default function DistributorDashboard() {
   const handleReceiveCustody = async (transferId: number, batchId: string) => {
     try {
       const tx = await sendTransaction("Receive Custody");
-      updateTransferStatus({ id: transferId, status: "completed" });
+      updateTransferStatus({
+        id: transferId,
+        status: "completed",
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
       updateBatchStatus({
         batchId,
         status: "Shipped",
@@ -382,7 +389,7 @@ export default function DistributorDashboard() {
                   <StatusBadge status={t.status} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t.fromId === user?.id ? "Outbound" : "Inbound"} • {t.fromId} -> {t.toId}
+                  {t.fromId === user?.id ? "Outbound" : "Inbound"} • {t.fromId} {"->"} {t.toId}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {t.createdAt ? new Date(t.createdAt).toLocaleString() : "N/A"}
@@ -431,3 +438,4 @@ export default function DistributorDashboard() {
     </div>
   );
 }
+

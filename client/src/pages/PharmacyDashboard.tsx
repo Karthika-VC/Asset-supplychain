@@ -110,7 +110,14 @@ export default function PharmacyDashboard() {
   const handleReceiveByTransfer = async (transferId: number, batchId: string) => {
     try {
       const tx = await sendTransaction("Receive Medicines");
-      updateTransferStatus({ id: transferId, status: "completed" });
+      updateTransferStatus({
+        id: transferId,
+        status: "completed",
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
       updateStatus({
         batchId,
         status: "Received",
@@ -420,7 +427,7 @@ export default function PharmacyDashboard() {
                     <p className="text-white font-mono text-sm">{t.entityBatchId}</p>
                     <StatusBadge status={t.status} />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{t.fromId} -> {t.toId}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.fromId} {"->"} {t.toId}</p>
                   <p className="text-[11px] text-muted-foreground">{t.createdAt ? new Date(t.createdAt).toLocaleString() : "N/A"}</p>
                 </div>
               ))}
@@ -450,3 +457,4 @@ export default function PharmacyDashboard() {
     </div>
   );
 }
+

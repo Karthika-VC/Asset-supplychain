@@ -179,8 +179,20 @@ export default function ManufacturerDashboard() {
     }
   };
 
-  const handleApproveRequest = (transferId: number) => {
-    updateTransferStatus({ id: transferId, status: "completed" });
+  const handleApproveRequest = async (transferId: number) => {
+    try {
+      const tx = await sendTransaction("Approve Distributor Request");
+      updateTransferStatus({
+        id: transferId,
+        status: "completed",
+        txHash: tx.txHash,
+        chainId: tx.chainId,
+        blockNumber: tx.blockNumber,
+        contractAddress: tx.contractAddress,
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (

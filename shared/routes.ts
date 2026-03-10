@@ -10,21 +10,60 @@ import {
 } from './schema';
 
 export const errorSchemas = {
+  base: z.object({
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      details: z.record(z.unknown()).optional(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
+  }),
   validation: z.object({
-    message: z.string(),
-    field: z.string().optional(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      details: z
+        .object({
+          field: z.string().optional(),
+          issue: z.string().optional(),
+        })
+        .optional(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
   }),
   unauthorized: z.object({
-    message: z.string(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
   }),
   forbidden: z.object({
-    message: z.string(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
   }),
   notFound: z.object({
-    message: z.string(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
   }),
   internal: z.object({
-    message: z.string(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      requestId: z.string().nullable().optional(),
+      timestamp: z.string().optional(),
+    }),
   }),
 };
 
@@ -198,7 +237,13 @@ export const api = {
     updateStatus: {
       method: 'PATCH' as const,
       path: '/api/transfers/:id/status' as const,
-      input: z.object({ status: z.string() }),
+      input: z.object({
+        status: z.string(),
+        txHash: z.string().optional(),
+        chainId: z.number().int().positive().optional(),
+        blockNumber: z.number().int().positive().optional(),
+        contractAddress: z.string().optional(),
+      }),
       responses: {
         200: z.custom<typeof transfers.$inferSelect>(),
         404: errorSchemas.notFound,

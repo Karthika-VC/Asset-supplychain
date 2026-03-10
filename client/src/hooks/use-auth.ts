@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type LoginRequest, type RegisterRequest } from "@shared/routes";
+import { api, type RegisterRequest } from "@shared/routes";
+import type { LoginRequest } from "@shared/schema";
 import { authFetch, setToken, clearToken } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { useLocation } from "wouter";
 
 export function useUser() {
@@ -10,7 +12,7 @@ export function useUser() {
       const res = await authFetch(api.auth.me.path);
       if (!res.ok) {
         if (res.status === 401) return null;
-        throw new Error("Failed to fetch user");
+        throw new Error(await getApiErrorMessage(res, "Failed to fetch user"));
       }
       return api.auth.me.responses[200].parse(await res.json());
     },
@@ -29,8 +31,7 @@ export function useLogin() {
         body: JSON.stringify(credentials),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Login failed" }));
-        throw new Error(err.message || "Login failed");
+        throw new Error(await getApiErrorMessage(res, "Login failed"));
       }
       const data = api.auth.login.responses[200].parse(await res.json());
       setToken(data.token);
@@ -55,8 +56,7 @@ export function useRegister() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Registration failed" }));
-        throw new Error(err.message || "Registration failed");
+        throw new Error(await getApiErrorMessage(res, "Registration failed"));
       }
       const responseData = api.auth.register.responses[201].parse(await res.json());
       setToken(responseData.token);
@@ -80,3 +80,4 @@ export function useLogout() {
     setLocation("/");
   };
 }
+

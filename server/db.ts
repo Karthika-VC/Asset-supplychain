@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/mysql2";
-import { createPool } from "mysql2/promise";
+import mysql from "mysql2/promise";
 import * as schema from "@shared/schema";
 
 const connectionString = process.env.DATABASE_URL ?? process.env.MYSQL_URL;
@@ -10,5 +10,5 @@ if (!connectionString) {
   );
 }
 
-export const pool = createPool(connectionString);
-export const db = drizzle(pool, { schema });
+export const pool = mysql.createPool(connectionString);
+export const db = drizzle(pool, { schema, mode: "default" });

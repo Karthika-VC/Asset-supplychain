@@ -70,8 +70,9 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
+    const syntaxErr = err as SyntaxError & { status?: number; body?: unknown };
     const isBodyParseError =
-      err instanceof SyntaxError && typeof err.status === "number" && "body" in err;
+      err instanceof SyntaxError && typeof syntaxErr.status === "number" && "body" in syntaxErr;
     const message = isBodyParseError
       ? "Malformed JSON request body"
       : err.message || "Internal Server Error";

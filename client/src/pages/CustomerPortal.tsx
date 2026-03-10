@@ -9,6 +9,7 @@ import { useAuthenticityReports, useCreateAuthenticityReport } from "@/hooks/use
 import { useCreateFeedback } from "@/hooks/use-feedback";
 import { Search, ShieldCheck, AlertTriangle, User, ScanLine, Star, BadgeCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useLocation } from "wouter";
 
 function parseBatchIdFromQrInput(input: string): string {
   const trimmed = input.trim();
@@ -25,7 +26,8 @@ function parseBatchIdFromQrInput(input: string): string {
 }
 
 export default function CustomerPortal() {
-  const { data: user } = useUser();
+  const { data: user, isLoading: isUserLoading } = useUser();
+  const [, setLocation] = useLocation();
   const [searchInput, setSearchInput] = useState("");
   const [qrInput, setQrInput] = useState("");
   const [queryId, setQueryId] = useState("");
@@ -97,6 +99,16 @@ export default function CustomerPortal() {
     });
     setReportComment("");
   };
+
+  if (!isUserLoading && !user) {
+    setLocation("/login");
+    return null;
+  }
+
+  if (!isUserLoading && user && user.role !== "customer") {
+    setLocation("/dashboard");
+    return null;
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 fade-in-up space-y-8">

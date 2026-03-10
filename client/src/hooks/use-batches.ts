@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertMedicineBatch } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import type { InsertMedicineBatch } from "@shared/schema";
 import { authFetch } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export function useBatches() {
   return useQuery({
     queryKey: [api.batches.list.path],
     queryFn: async () => {
       const res = await authFetch(api.batches.list.path);
-      if (!res.ok) throw new Error("Failed to fetch batches");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to fetch batches"));
       return api.batches.list.responses[200].parse(await res.json());
     },
   });
@@ -20,7 +22,7 @@ export function useBatch(batchId: string) {
       const url = buildUrl(api.batches.get.path, { batchId });
       const res = await authFetch(url);
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch batch details");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to fetch batch details"));
       return api.batches.get.responses[200].parse(await res.json());
     },
     enabled: !!batchId,
@@ -36,7 +38,7 @@ export function useCreateBatch() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to create medicine batch");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to create medicine batch"));
       return api.batches.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
@@ -69,7 +71,7 @@ export function useUpdateBatchStatus() {
         method: "PATCH",
         body: JSON.stringify({ status, txHash, chainId, blockNumber, contractAddress }),
       });
-      if (!res.ok) throw new Error("Failed to update batch status");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to update batch status"));
       return api.batches.updateStatus.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
@@ -78,3 +80,4 @@ export function useUpdateBatchStatus() {
     },
   });
 }
+

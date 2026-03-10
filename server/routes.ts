@@ -50,6 +50,11 @@ function mapDocumentEntityType(role: string): "manufacturer" | "distributor" | "
   return "user";
 }
 
+function readParam(value: string | string[] | undefined): string | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -210,7 +215,8 @@ export async function registerRoutes(
       });
     }
 
-    const id = Number(req.params.id);
+    const idParam = readParam(req.params.id);
+    const id = Number(idParam);
     if (!Number.isInteger(id) || id <= 0) {
       return sendError(res, 400, "VALIDATION_ERROR", "Invalid user id", {
         field: "id",
@@ -259,7 +265,10 @@ export async function registerRoutes(
         });
       }
 
-      const item = await storage.createMaterial(parsed.data);
+      const item = await storage.createMaterial({
+        ...parsed.data,
+        supplierId: req.user!.id,
+      });
       res.status(201).json(item);
     },
   );
@@ -280,7 +289,9 @@ export async function registerRoutes(
     requireAuth,
     requireRole("admin", "manufacturer", "distributor", "pharmacy", "customer"),
     async (req, res) => {
-    const item = await storage.getBatch(req.params.batchId);
+    const batchId = readParam(req.params.batchId);
+    if (!batchId) return sendError(res, 400, "VALIDATION_ERROR", "Invalid batch id");
+    const item = await storage.getBatch(batchId);
     if (!item) return sendError(res, 404, "NOT_FOUND", "Batch not found");
     res.json(item);
     },
@@ -321,7 +332,10 @@ export async function registerRoutes(
         });
       }
 
-      const item = await storage.updateBatchStatus(req.params.batchId, parsed.data.status, {
+      const batchId = readParam(req.params.batchId);
+      if (!batchId) return sendError(res, 400, "VALIDATION_ERROR", "Invalid batch id");
+
+      const item = await storage.updateBatchStatus(batchId, parsed.data.status, {
         txHash: parsed.data.txHash,
         chainId: parsed.data.chainId,
         blockNumber: parsed.data.blockNumber,
@@ -358,7 +372,10 @@ export async function registerRoutes(
           issue: firstError?.message,
         });
       }
-      const item = await storage.createTransfer(parsed.data);
+      const item = await storage.createTransfer({
+        ...parsed.data,
+        fromId: req.user!.id,
+      });
       res.status(201).json(item);
     },
   );
@@ -378,14 +395,20 @@ export async function registerRoutes(
         });
       }
 
-      const transferId = Number(req.params.id);
+      const transferIdParam = readParam(req.params.id);
+      const transferId = Number(transferIdParam);
       if (!Number.isInteger(transferId) || transferId <= 0) {
         return sendError(res, 400, "VALIDATION_ERROR", "Invalid transfer id", {
           field: "id",
         });
       }
 
-      const item = await storage.updateTransferStatus(transferId, parsed.data.status);
+      const item = await storage.updateTransferStatus(transferId, parsed.data.status, {
+        txHash: parsed.data.txHash,
+        chainId: parsed.data.chainId,
+        blockNumber: parsed.data.blockNumber,
+        contractAddress: parsed.data.contractAddress,
+      });
       if (!item) return sendError(res, 404, "NOT_FOUND", "Transfer not found");
       res.json(item);
     },
@@ -415,7 +438,10 @@ export async function registerRoutes(
           issue: firstError?.message,
         });
       }
-      const item = await storage.createAuthenticityReport(parsed.data);
+      const item = await storage.createAuthenticityReport({
+        ...parsed.data,
+        reportedBy: req.user!.id,
+      });
       res.status(201).json(item);
     },
   );
@@ -436,7 +462,10 @@ export async function registerRoutes(
       });
     }
 
-    const item = await storage.createFeedback(parsed.data);
+    const item = await storage.createFeedback({
+      ...parsed.data,
+      customerId: req.user!.id,
+    });
     res.status(201).json(item);
   });
 

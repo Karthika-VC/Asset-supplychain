@@ -56,7 +56,16 @@ export interface IStorage {
   // Transfers
   getTransfers(): Promise<Transfer[]>;
   createTransfer(transfer: InsertTransfer): Promise<Transfer>;
-  updateTransferStatus(id: number, status: string): Promise<Transfer | undefined>;
+  updateTransferStatus(
+    id: number,
+    status: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<Transfer | undefined>;
 
   // Authenticity
   getAuthenticityReports(): Promise<AuthenticityReport[]>;
@@ -94,7 +103,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const [{ id: insertedId }] = await db.insert(users).values(insertUser).$returningId();
+    const [user] = await db.select().from(users).where(eq(users.id, insertedId));
+    if (!user) {
+      throw new Error("Failed to create user");
+    }
     return user;
   }
 
@@ -113,7 +126,8 @@ export class DatabaseStorage implements IStorage {
       contractAddress?: string;
     },
   ): Promise<User | undefined> {
-    const [user] = await db.update(users)
+    await db
+      .update(users)
       .set({
         isApproved,
         ...(walletAddress ? { walletAddress } : {}),
@@ -122,8 +136,9 @@ export class DatabaseStorage implements IStorage {
         ...(typeof txMeta?.blockNumber === "number" ? { approvalBlockNumber: txMeta.blockNumber } : {}),
         ...(txMeta?.contractAddress ? { approvalContractAddress: txMeta.contractAddress } : {}),
       })
-      .where(eq(users.id, id))
-      .returning();
+      .where(eq(users.id, id));
+
+    const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
@@ -133,7 +148,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMaterial(insertMaterial: InsertMaterial): Promise<Material> {
-    const [material] = await db.insert(materials).values(insertMaterial).returning();
+    const [{ id: insertedId }] = await db.insert(materials).values(insertMaterial).$returningId();
+    const [material] = await db.select().from(materials).where(eq(materials.id, insertedId));
+    if (!material) {
+      throw new Error("Failed to create material");
+    }
     return material;
   }
 
@@ -148,7 +167,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBatch(insertBatch: InsertMedicineBatch): Promise<MedicineBatch> {
-    const [batch] = await db.insert(medicineBatches).values(insertBatch).returning();
+    const [{ id: insertedId }] = await db.insert(medicineBatches).values(insertBatch).$returningId();
+    const [batch] = await db.select().from(medicineBatches).where(eq(medicineBatches.id, insertedId));
+    if (!batch) {
+      throw new Error("Failed to create batch");
+    }
     return batch;
   }
 
@@ -162,16 +185,18 @@ export class DatabaseStorage implements IStorage {
       contractAddress?: string;
     },
   ): Promise<MedicineBatch | undefined> {
-    const [batch] = await db.update(medicineBatches)
+    await db
+      .update(medicineBatches)
       .set({
-        status,
+        status: status as any,
         ...(txMeta?.txHash ? { txHash: txMeta.txHash, blockchainHash: txMeta.txHash } : {}),
         ...(typeof txMeta?.chainId === "number" ? { chainId: txMeta.chainId } : {}),
         ...(typeof txMeta?.blockNumber === "number" ? { blockNumber: txMeta.blockNumber } : {}),
         ...(txMeta?.contractAddress ? { contractAddress: txMeta.contractAddress } : {}),
       })
-      .where(eq(medicineBatches.batchId, batchId))
-      .returning();
+      .where(eq(medicineBatches.batchId, batchId));
+
+    const [batch] = await db.select().from(medicineBatches).where(eq(medicineBatches.batchId, batchId));
     return batch;
   }
 
@@ -181,16 +206,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransfer(insertTransfer: InsertTransfer): Promise<Transfer> {
-    const [transfer] = await db.insert(transfers).values(insertTransfer).returning();
+    const [{ id: insertedId }] = await db.insert(transfers).values(insertTransfer).$returningId();
+    const [transfer] = await db.select().from(transfers).where(eq(transfers.id, insertedId));
+    if (!transfer) {
+      throw new Error("Failed to create transfer");
+    }
     return transfer;
   }
 
-  async updateTransferStatus(id: number, status: string): Promise<Transfer | undefined> {
-    const [transfer] = await db
+  async updateTransferStatus(
+    id: number,
+    status: string,
+    txMeta?: {
+      txHash?: string;
+      chainId?: number;
+      blockNumber?: number;
+      contractAddress?: string;
+    },
+  ): Promise<Transfer | undefined> {
+    await db
       .update(transfers)
-      .set({ status })
-      .where(eq(transfers.id, id))
-      .returning();
+      .set({
+        status: status as any,
+        ...(txMeta?.txHash ? { txHash: txMeta.txHash, blockchainHash: txMeta.txHash } : {}),
+        ...(typeof txMeta?.chainId === "number" ? { chainId: txMeta.chainId } : {}),
+        ...(typeof txMeta?.blockNumber === "number" ? { blockNumber: txMeta.blockNumber } : {}),
+        ...(txMeta?.contractAddress ? { contractAddress: txMeta.contractAddress } : {}),
+      })
+      .where(eq(transfers.id, id));
+    const [transfer] = await db.select().from(transfers).where(eq(transfers.id, id));
     return transfer;
   }
 
@@ -200,7 +244,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAuthenticityReport(insertReport: InsertAuthenticityReport): Promise<AuthenticityReport> {
-    const [report] = await db.insert(authenticityReports).values(insertReport).returning();
+    const [{ id: insertedId }] = await db.insert(authenticityReports).values(insertReport).$returningId();
+    const [report] = await db.select().from(authenticityReports).where(eq(authenticityReports.id, insertedId));
+    if (!report) {
+      throw new Error("Failed to create authenticity report");
+    }
     return report;
   }
 
@@ -210,27 +258,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createFeedback(insertFb: InsertFeedback): Promise<Feedback> {
-    const [fb] = await db.insert(feedback).values(insertFb).returning();
+    const [{ id: insertedId }] = await db.insert(feedback).values(insertFb).$returningId();
+    const [fb] = await db.select().from(feedback).where(eq(feedback.id, insertedId));
+    if (!fb) {
+      throw new Error("Failed to create feedback");
+    }
     return fb;
   }
 
   async createManufacturerProfile(profile: InsertManufacturer): Promise<Manufacturer> {
-    const [created] = await db.insert(manufacturers).values(profile).returning();
+    const [{ id: insertedId }] = await db.insert(manufacturers).values(profile).$returningId();
+    const [created] = await db.select().from(manufacturers).where(eq(manufacturers.id, insertedId));
+    if (!created) {
+      throw new Error("Failed to create manufacturer profile");
+    }
     return created;
   }
 
   async createDistributorProfile(profile: InsertDistributor): Promise<Distributor> {
-    const [created] = await db.insert(distributors).values(profile).returning();
+    const [{ id: insertedId }] = await db.insert(distributors).values(profile).$returningId();
+    const [created] = await db.select().from(distributors).where(eq(distributors.id, insertedId));
+    if (!created) {
+      throw new Error("Failed to create distributor profile");
+    }
     return created;
   }
 
   async createPharmacyProfile(profile: InsertPharmacy): Promise<Pharmacy> {
-    const [created] = await db.insert(pharmacies).values(profile).returning();
+    const [{ id: insertedId }] = await db.insert(pharmacies).values(profile).$returningId();
+    const [created] = await db.select().from(pharmacies).where(eq(pharmacies.id, insertedId));
+    if (!created) {
+      throw new Error("Failed to create pharmacy profile");
+    }
     return created;
   }
 
   async createCustomerProfile(profile: InsertCustomer): Promise<Customer> {
-    const [created] = await db.insert(customers).values(profile).returning();
+    const [{ id: insertedId }] = await db.insert(customers).values(profile).$returningId();
+    const [created] = await db.select().from(customers).where(eq(customers.id, insertedId));
+    if (!created) {
+      throw new Error("Failed to create customer profile");
+    }
     return created;
   }
 
@@ -260,7 +328,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUploadedDocument(doc: InsertUploadedDocument): Promise<UploadedDocument> {
-    const [created] = await db.insert(uploadedDocuments).values(doc).returning();
+    const [{ id: insertedId }] = await db.insert(uploadedDocuments).values(doc).$returningId();
+    const [created] = await db.select().from(uploadedDocuments).where(eq(uploadedDocuments.id, insertedId));
+    if (!created) {
+      throw new Error("Failed to create uploaded document");
+    }
     return created;
   }
 }

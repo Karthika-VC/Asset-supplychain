@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type InsertMaterial } from "@shared/routes";
+import { api } from "@shared/routes";
+import type { InsertMaterial } from "@shared/schema";
 import { authFetch } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 export function useMaterials() {
   return useQuery({
     queryKey: [api.materials.list.path],
     queryFn: async () => {
       const res = await authFetch(api.materials.list.path);
-      if (!res.ok) throw new Error("Failed to fetch materials");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to fetch materials"));
       return api.materials.list.responses[200].parse(await res.json());
     },
   });
@@ -22,7 +24,7 @@ export function useCreateMaterial() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to create material");
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to create material"));
       return api.materials.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
@@ -30,3 +32,4 @@ export function useCreateMaterial() {
     },
   });
 }
+

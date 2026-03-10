@@ -1,7 +1,4 @@
 import crypto from "crypto";
-import { promisify } from "util";
-
-const scryptAsync = promisify(crypto.scrypt);
 
 const HASH_KEY_LENGTH = 64;
 const SCRYPT_N = 16384;
@@ -48,11 +45,7 @@ export type AuthTokenPayload = {
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16);
-  const derived = (await scryptAsync(password, salt, HASH_KEY_LENGTH, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-  })) as Buffer;
+  const derived = crypto.scryptSync(password, salt, HASH_KEY_LENGTH);
 
   return [
     "scrypt",
@@ -80,11 +73,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 
   const salt = Buffer.from(saltRaw, "hex");
   const expected = Buffer.from(hashRaw, "hex");
-  const derived = (await scryptAsync(password, salt, expected.length, {
-    N,
-    r,
-    p,
-  })) as Buffer;
+  const derived = crypto.scryptSync(password, salt, expected.length);
 
   if (derived.length !== expected.length) {
     return false;

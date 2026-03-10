@@ -17,7 +17,8 @@ export function useMetaMask() {
   const { toast } = useToast();
 
   const connect = useCallback(async () => {
-    if (typeof window.ethereum === "undefined") {
+    const ethereum = window.ethereum as ethers.Eip1193Provider | undefined;
+    if (!ethereum) {
       toast({
         title: "MetaMask Not Found",
         description: "Please install the MetaMask browser extension.",
@@ -28,7 +29,7 @@ export function useMetaMask() {
 
     try {
       setIsConnecting(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
       if (accounts.length > 0) {
         setAddress(accounts[0]);
@@ -53,11 +54,12 @@ export function useMetaMask() {
 
   const sendTransaction = useCallback(
     async (actionName: string): Promise<ChainTxResult> => {
-      if (typeof window.ethereum === "undefined") {
+      const ethereum = window.ethereum as ethers.Eip1193Provider | undefined;
+      if (!ethereum) {
         throw new Error("MetaMask is required");
       }
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
       const signerAddress = await signer.getAddress();
 
