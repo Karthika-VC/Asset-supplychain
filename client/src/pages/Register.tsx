@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useRegister } from "@/hooks/use-auth";
-import { useMetaMask, type ChainTxResult } from "@/hooks/use-metamask";
+import { useMetaMask } from "@/hooks/use-metamask";
 import { GlassCard } from "@/components/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ type RegisterFormState = {
   organization: string;
   role: RegisterRequest["role"];
   profileRefNumber: string;
-  proofUrl: string;
 };
 
 export default function Register() {
@@ -31,17 +30,11 @@ export default function Register() {
     organization: "",
     role: "customer",
     profileRefNumber: "",
-    proofUrl: "",
   });
-  const [documentMeta, setDocumentMeta] = useState<{
-    fileName: string;
-    mimeType: string;
-    dataUrl: string;
-  } | null>(null);
-  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const { mutateAsync: register, isPending } = useRegister();
-  const { connect, address, sendTransaction, isConnecting } = useMetaMask();
+  const { connect, address, isConnecting } = useMetaMask();
   const { toast } = useToast();
 
   const isBusinessRole = formData.role !== "customer";
@@ -50,62 +43,51 @@ export default function Register() {
     return "Business License Number";
   }, [formData.role]);
 
-  const handleProofFileChange = async (file: File | null) => {
-    if (!file) {
-      setDocumentMeta(null);
-      return;
+  const walletLabel = address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : "No wallet connected";
+
+  const buildMultipartPayload = () => {
+    const payload = new FormData();
+
+    payload.append("name", formData.name);
+    payload.append("email", formData.email);
+    payload.append("password", formData.password);
+    payload.append("phone", formData.phone);
+    payload.append("role", formData.role);
+
+    if (formData.organization.trim()) {
+      payload.append("organization", formData.organization.trim());
     }
 
-    setUploadingDocument(true);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.onerror = () => reject(new Error("Unable to read file"));
-        reader.readAsDataURL(file);
-      });
+    if (address) {
+      payload.append("walletAddress", address);
+    }
 
-      setDocumentMeta({
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-        dataUrl,
-      });
-    } finally {
-      setUploadingDocument(false);
+    if (proofFile) {
+      payload.append("proof", proofFile);
     }
-  };
 
-  const buildProfilePayload = (role: RegisterRequest["role"], org: string, refNo: string) => {
-    if (role === "manufacturer") {
-      return {
-        facilityName: org,
-        licenseNumber: refNo,
-      };
+    if (formData.role === "manufacturer") {
+      payload.append("facilityName", formData.organization.trim());
+      payload.append("licenseNumber", formData.profileRefNumber.trim());
+    } else if (formData.role === "distributor" || formData.role === "material_distributor") {
+      payload.append("distributionCenterName", formData.organization.trim());
+      payload.append("licenseNumber", formData.profileRefNumber.trim());
+    } else if (formData.role === "pharmacy") {
+      payload.append("pharmacyName", formData.organization.trim());
+      payload.append("permitNumber", formData.profileRefNumber.trim());
     }
-    if (role === "distributor" || role === "material_distributor") {
-      return {
-        distributionCenterName: org,
-        licenseNumber: refNo,
-      };
-    }
-    if (role === "pharmacy") {
-      return {
-        pharmacyName: org,
-        permitNumber: refNo,
-      };
-    }
-    return undefined;
+
+    return payload;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      let registrationTx: ChainTxResult | undefined;
-      let walletAddress: string | undefined;
-
       if (isBusinessRole) {
-        if (!documentMeta) {
+        if (!proofFile) {
           toast({
             title: "Document Required",
             description: "Please upload an approval document for business registration.",
@@ -114,42 +96,17 @@ export default function Register() {
           return;
         }
 
-        const connected = address ?? (await connect());
-        if (!connected) {
-          throw new Error("Wallet connection is required for business registration");
+        if (!address) {
+          toast({
+            title: "Wallet Required",
+            description: "Please connect your MetaMask wallet before submitting.",
+            variant: "destructive",
+          });
+          return;
         }
-        walletAddress = connected;
-        registrationTx = await sendTransaction(`Register ${formData.role}`);
       }
 
-      const payload: RegisterRequest = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        phone: formData.phone,
-        organization: formData.organization,
-        role: formData.role,
-        proofUrl: documentMeta?.dataUrl || formData.proofUrl || undefined,
-        walletAddress,
-        registrationTx: registrationTx
-          ? {
-              txHash: registrationTx.txHash,
-              chainId: registrationTx.chainId,
-              blockNumber: registrationTx.blockNumber,
-              contractAddress: registrationTx.contractAddress,
-            }
-          : undefined,
-        profile: buildProfilePayload(formData.role, formData.organization, formData.profileRefNumber),
-        approvalDocument: documentMeta
-          ? {
-              fileName: documentMeta.fileName,
-              mimeType: documentMeta.mimeType,
-              dataUrl: documentMeta.dataUrl,
-            }
-          : undefined,
-      };
-
-      await register(payload);
+      await register(buildMultipartPayload());
     } catch (err: any) {
       toast({
         title: "Registration Failed",
@@ -221,7 +178,7 @@ export default function Register() {
 
             <div className="space-y-2">
               <Label className="text-white/80">Account Type</Label>
-              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as RegisterRequest["role"] })}>
+              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value as RegisterRequest["role"] })}>
                 <SelectTrigger className="bg-black/20 border-white/10 text-white h-11">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
@@ -263,32 +220,46 @@ export default function Register() {
                     id="proofFile"
                     type="file"
                     required
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => void handleProofFileChange(e.target.files?.[0] ?? null)}
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
                     className="bg-black/20 border-white/10 text-white focus:border-primary h-11 file:text-white file:bg-white/10 file:border-0 file:mr-3"
                   />
-                  {documentMeta && (
-                    <p className="text-xs text-primary">Selected: {documentMeta.fileName}</p>
+                  {proofFile && (
+                    <p className="text-xs text-primary">Selected: {proofFile.name}</p>
                   )}
                 </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-white">Wallet</p>
+                      <p className="text-xs text-muted-foreground">{walletLabel}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void connect()}
+                      disabled={isConnecting}
+                      className="shrink-0"
+                    >
+                      {isConnecting ? "Connecting..." : address ? "Reconnect Wallet" : "Connect Wallet"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Connecting your wallet only stores your address during registration. No placeholder blockchain transaction is sent.
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Business accounts require wallet signature and admin approval before dashboard access.
+                  Business accounts require document review and admin approval before dashboard access.
                 </p>
               </>
             )}
 
             <Button
               type="submit"
-              disabled={isPending || uploadingDocument || isConnecting}
+              disabled={isPending || isConnecting}
               className="w-full h-12 mt-4 text-lg rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-[0_0_20px_rgba(0,212,170,0.3)] border-none"
             >
-              {isPending
-                ? "Creating Account..."
-                : uploadingDocument
-                  ? "Preparing Document..."
-                  : isBusinessRole
-                    ? "Register & Sign On-Chain"
-                    : "Create Account"}
+              {isPending ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
 

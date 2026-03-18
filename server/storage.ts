@@ -14,7 +14,7 @@ import {
   type Customer, type InsertCustomer,
   type UploadedDocument, type InsertUploadedDocument,
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -22,17 +22,18 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
-  updateUserStatus(
+  getPendingBusinessUsers(): Promise<User[]>;
+  approveUser(
     id: number,
-    isApproved: boolean,
-    walletAddress?: string,
-    txMeta?: {
+    approval?: {
+      walletAddress?: string;
       txHash?: string;
       chainId?: number;
       blockNumber?: number;
       contractAddress?: string;
     },
   ): Promise<User | undefined>;
+  rejectPendingUser(id: number): Promise<User | undefined>;
   
   // Materials
   getMaterials(): Promise<Material[]>;
@@ -115,31 +116,88 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async updateUserStatus(
+  async getPendingBusinessUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.isApproved, false),
+        ne(users.role, "customer"),
+        ne(users.role, "admin"),
+      ))
+      .orderBy(desc(users.createdAt), desc(users.id));
+  }
+
+  async approveUser(
     id: number,
-    isApproved: boolean,
-    walletAddress?: string,
-    txMeta?: {
+    approval?: {
+      walletAddress?: string;
       txHash?: string;
       chainId?: number;
       blockNumber?: number;
       contractAddress?: string;
     },
   ): Promise<User | undefined> {
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.id, id),
+        eq(users.isApproved, false),
+        ne(users.role, "customer"),
+        ne(users.role, "admin"),
+      ));
+
+    if (!existingUser) {
+      return undefined;
+    }
+
     await db
       .update(users)
       .set({
-        isApproved,
-        ...(walletAddress ? { walletAddress } : {}),
-        ...(txMeta?.txHash ? { approvalTxHash: txMeta.txHash } : {}),
-        ...(typeof txMeta?.chainId === "number" ? { approvalChainId: txMeta.chainId } : {}),
-        ...(typeof txMeta?.blockNumber === "number" ? { approvalBlockNumber: txMeta.blockNumber } : {}),
-        ...(txMeta?.contractAddress ? { approvalContractAddress: txMeta.contractAddress } : {}),
+        isApproved: true,
+        ...(approval?.walletAddress ? { walletAddress: approval.walletAddress } : {}),
+        ...(approval?.txHash ? { approvalTxHash: approval.txHash } : {}),
+        ...(typeof approval?.chainId === "number" ? { approvalChainId: approval.chainId } : {}),
+        ...(typeof approval?.blockNumber === "number" ? { approvalBlockNumber: approval.blockNumber } : {}),
+        ...(approval?.contractAddress ? { approvalContractAddress: approval.contractAddress } : {}),
       })
       .where(eq(users.id, id));
 
+    await this.updateBusinessProfileStatusByUser(existingUser.role, existingUser.id, true);
+    await db
+      .update(uploadedDocuments)
+      .set({
+        status: "verified",
+        verifiedAt: new Date(),
+      })
+      .where(eq(uploadedDocuments.uploaderUserId, id));
+
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async rejectPendingUser(id: number): Promise<User | undefined> {
+    return db.transaction(async (tx) => {
+      const [user] = await tx
+        .select()
+        .from(users)
+        .where(and(
+          eq(users.id, id),
+          eq(users.isApproved, false),
+          ne(users.role, "customer"),
+          ne(users.role, "admin"),
+        ));
+
+      if (!user) {
+        return undefined;
+      }
+
+      await tx.delete(uploadedDocuments).where(eq(uploadedDocuments.uploaderUserId, id));
+      await tx.delete(users).where(eq(users.id, id));
+
+      return user;
+    });
   }
 
   // Materials

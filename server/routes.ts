@@ -1,10 +1,13 @@
 import type { Express, Response } from "express";
 import type { Server } from "http";
+import path from "path";
+import { unlink } from "fs/promises";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { hashPassword, signAuthToken, verifyPassword } from "./security";
 import { requireApprovedBusiness, requireAuth, requireRole } from "./auth-middleware";
+import { registrationUpload } from "./upload";
 
 function sendError(
   res: Response,
@@ -50,6 +53,24 @@ function mapDocumentEntityType(role: string): "manufacturer" | "distributor" | "
   return "user";
 }
 
+async function removeUploadedFile(filePath: string | undefined): Promise<void> {
+  if (!filePath) return;
+
+  try {
+    await unlink(filePath);
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      console.error("Failed to remove uploaded file:", error);
+    }
+  }
+}
+
+async function removeUploadedProofByUrl(proofUrl: string | null | undefined): Promise<void> {
+  if (!proofUrl || !proofUrl.startsWith("/uploads/")) return;
+  const localPath = path.resolve(process.cwd(), proofUrl.slice(1));
+  await removeUploadedFile(localPath);
+}
+
 function readParam(value: string | string[] | undefined): string | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -59,9 +80,10 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  app.post(api.auth.register.path, async (req, res) => {
+  app.post(api.auth.register.path, registrationUpload.single("proof"), async (req, res, next) => {
     const parsed = parseInput(api.auth.register.input, req.body);
     if (!parsed.success) {
+      await removeUploadedFile(req.file?.path);
       const firstError = parsed.error.errors[0];
       return sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
         field: firstError?.path.join("."),
@@ -71,100 +93,131 @@ export async function registerRoutes(
 
     const existing = await storage.getUserByEmail(parsed.data.email);
     if (existing) {
+      await removeUploadedFile(req.file?.path);
       return sendError(res, 409, "EMAIL_EXISTS", "Email already registered");
     }
 
     const role = parsed.data.role;
     const businessRole = isBusinessRole(role);
     const organizationName = parsed.data.organization?.trim() || (role === "customer" ? "Individual Customer" : "");
+    const proofUrl = req.file ? `/uploads/${req.file.filename}` : parsed.data.proofUrl;
+    const approvalTx = parsed.data.approvalTxHash
+      ? {
+          txHash: parsed.data.approvalTxHash,
+          chainId: parsed.data.approvalChainId,
+          blockNumber: parsed.data.approvalBlockNumber,
+          contractAddress: parsed.data.approvalContractAddress,
+        }
+      : undefined;
 
     if (businessRole) {
       if (!organizationName) {
+        await removeUploadedFile(req.file?.path);
         return sendError(res, 400, "VALIDATION_ERROR", "Organization is required for business roles");
       }
-      if (!parsed.data.walletAddress || !parsed.data.registrationTx) {
-        return sendError(res, 400, "VALIDATION_ERROR", "Wallet address and on-chain registration are required for business roles");
+      if (!parsed.data.walletAddress) {
+        await removeUploadedFile(req.file?.path);
+        return sendError(res, 400, "VALIDATION_ERROR", "Wallet address is required for business roles");
       }
-      if (!parsed.data.approvalDocument) {
+      if (!proofUrl) {
+        await removeUploadedFile(req.file?.path);
         return sendError(res, 400, "VALIDATION_ERROR", "Approval document upload is required for business roles");
       }
     }
 
-    const hashedPassword = await hashPassword(parsed.data.password);
-    const user = await storage.createUser({
-      name: parsed.data.name,
-      email: parsed.data.email,
-      password: hashedPassword,
-      phone: parsed.data.phone,
-      organization: organizationName,
-      role: parsed.data.role,
-      proofUrl: parsed.data.approvalDocument?.dataUrl || parsed.data.proofUrl,
-      walletAddress: parsed.data.walletAddress,
-      isApproved: businessRole ? false : true,
-      ...(parsed.data.registrationTx
-        ? {
-            approvalTxHash: parsed.data.registrationTx.txHash,
-            approvalChainId: parsed.data.registrationTx.chainId,
-            approvalBlockNumber: parsed.data.registrationTx.blockNumber,
-            approvalContractAddress: parsed.data.registrationTx.contractAddress,
-          }
-        : {}),
-    });
-
-    if (role === "manufacturer") {
-      await storage.createManufacturerProfile({
-        userId: user.id,
-        facilityName: parsed.data.profile?.facilityName || organizationName,
-        licenseNumber: parsed.data.profile?.licenseNumber || "PENDING",
-        status: "pending",
-        registrationTxHash: parsed.data.registrationTx?.txHash,
-        registrationChainId: parsed.data.registrationTx?.chainId,
-        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
-        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
-      });
-    } else if (role === "distributor" || role === "material_distributor") {
-      await storage.createDistributorProfile({
-        userId: user.id,
-        distributionCenterName: parsed.data.profile?.distributionCenterName || organizationName,
-        licenseNumber: parsed.data.profile?.licenseNumber || "PENDING",
-        status: "pending",
-        registrationTxHash: parsed.data.registrationTx?.txHash,
-        registrationChainId: parsed.data.registrationTx?.chainId,
-        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
-        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
-      });
-    } else if (role === "pharmacy") {
-      await storage.createPharmacyProfile({
-        userId: user.id,
-        pharmacyName: parsed.data.profile?.pharmacyName || organizationName,
-        permitNumber: parsed.data.profile?.permitNumber || "PENDING",
-        status: "pending",
-        registrationTxHash: parsed.data.registrationTx?.txHash,
-        registrationChainId: parsed.data.registrationTx?.chainId,
-        registrationBlockNumber: parsed.data.registrationTx?.blockNumber,
-        registrationContractAddress: parsed.data.registrationTx?.contractAddress,
-      });
-    } else if (role === "customer") {
-      await storage.createCustomerProfile({
-        userId: user.id,
-        status: "active",
+    if (
+      parsed.data.approvalTxHash &&
+      (!parsed.data.approvalChainId || !parsed.data.approvalBlockNumber || !parsed.data.approvalContractAddress)
+    ) {
+      await removeUploadedFile(req.file?.path);
+      return sendError(res, 400, "VALIDATION_ERROR", "Incomplete blockchain transaction metadata", {
+        field: "approvalTxHash",
       });
     }
 
-    if (businessRole && parsed.data.approvalDocument) {
-      await storage.createUploadedDocument({
-        uploaderUserId: user.id,
-        entityType: mapDocumentEntityType(role),
-        entityId: user.id,
-        documentType: "business_license",
-        fileUrl: parsed.data.approvalDocument.dataUrl,
-        mimeType: parsed.data.approvalDocument.mimeType,
-        status: "uploaded",
+    try {
+      const hashedPassword = await hashPassword(parsed.data.password);
+      const user = await storage.createUser({
+        name: parsed.data.name,
+        email: parsed.data.email,
+        password: hashedPassword,
+        phone: parsed.data.phone,
+        organization: organizationName,
+        role: parsed.data.role,
+        proofUrl,
+        walletAddress: parsed.data.walletAddress,
+        isApproved: businessRole ? false : true,
+        ...(approvalTx
+          ? {
+              approvalTxHash: approvalTx.txHash,
+              approvalChainId: approvalTx.chainId,
+              approvalBlockNumber: approvalTx.blockNumber,
+              approvalContractAddress: approvalTx.contractAddress,
+            }
+          : {}),
       });
-    }
 
-    const token = signAuthToken({ userId: user.id, role: user.role });
-    res.status(201).json({ token, user: toPublicUser(user) });
+      if (role === "manufacturer") {
+        await storage.createManufacturerProfile({
+          userId: user.id,
+          facilityName: parsed.data.facilityName || organizationName,
+          licenseNumber: parsed.data.licenseNumber || "PENDING",
+          status: "pending",
+          registrationTxHash: approvalTx?.txHash,
+          registrationChainId: approvalTx?.chainId,
+          registrationBlockNumber: approvalTx?.blockNumber,
+          registrationContractAddress: approvalTx?.contractAddress,
+        });
+      } else if (role === "distributor" || role === "material_distributor") {
+        await storage.createDistributorProfile({
+          userId: user.id,
+          distributionCenterName: parsed.data.distributionCenterName || organizationName,
+          licenseNumber: parsed.data.licenseNumber || "PENDING",
+          status: "pending",
+          registrationTxHash: approvalTx?.txHash,
+          registrationChainId: approvalTx?.chainId,
+          registrationBlockNumber: approvalTx?.blockNumber,
+          registrationContractAddress: approvalTx?.contractAddress,
+        });
+      } else if (role === "pharmacy") {
+        await storage.createPharmacyProfile({
+          userId: user.id,
+          pharmacyName: parsed.data.pharmacyName || organizationName,
+          permitNumber: parsed.data.permitNumber || "PENDING",
+          status: "pending",
+          registrationTxHash: approvalTx?.txHash,
+          registrationChainId: approvalTx?.chainId,
+          registrationBlockNumber: approvalTx?.blockNumber,
+          registrationContractAddress: approvalTx?.contractAddress,
+        });
+      } else if (role === "customer") {
+        await storage.createCustomerProfile({
+          userId: user.id,
+          status: "active",
+        });
+      }
+
+      if (businessRole && req.file && proofUrl) {
+        await storage.createUploadedDocument({
+          uploaderUserId: user.id,
+          entityType: mapDocumentEntityType(role),
+          entityId: user.id,
+          documentType: "business_license",
+          originalFilename: req.file.originalname,
+          storedFilename: path.basename(req.file.path),
+          fileUrl: proofUrl,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          status: "uploaded",
+        });
+      }
+
+      const token = signAuthToken({ userId: user.id, role: user.role });
+      res.status(201).json({ token, user: toPublicUser(user) });
+    } catch (error) {
+      await removeUploadedFile(req.file?.path);
+      next(error);
+    }
   });
 
   app.post(api.auth.login.path, async (req, res) => {
@@ -205,6 +258,11 @@ export async function registerRoutes(
     res.json(users.map(toPublicUser));
   });
 
+  app.get(api.admin.pendingUsers.path, requireAuth, requireRole("admin"), async (req, res) => {
+    const users = await storage.getPendingBusinessUsers();
+    res.json(users.map(toPublicUser));
+  });
+
   app.patch(api.admin.approveUser.path, requireAuth, requireRole("admin"), async (req, res) => {
     const parsed = parseInput(api.admin.approveUser.input, req.body);
     if (!parsed.success) {
@@ -223,19 +281,30 @@ export async function registerRoutes(
       });
     }
 
-    const user = await storage.updateUserStatus(id, parsed.data.isApproved, parsed.data.walletAddress, {
-      txHash: parsed.data.txHash,
-      chainId: parsed.data.chainId,
-      blockNumber: parsed.data.blockNumber,
-      contractAddress: parsed.data.contractAddress,
-    });
+    const user = await storage.approveUser(id, parsed.data);
     if (!user) {
-      return sendError(res, 404, "NOT_FOUND", "User not found");
+      return sendError(res, 404, "NOT_FOUND", "Pending business user not found");
     }
 
-    await storage.updateBusinessProfileStatusByUser(user.role, user.id, parsed.data.isApproved);
-
     res.json(toPublicUser(user));
+  });
+
+  app.patch(api.admin.rejectUser.path, requireAuth, requireRole("admin"), async (req, res) => {
+    const idParam = readParam(req.params.id);
+    const id = Number(idParam);
+    if (!Number.isInteger(id) || id <= 0) {
+      return sendError(res, 400, "VALIDATION_ERROR", "Invalid user id", {
+        field: "id",
+      });
+    }
+
+    const user = await storage.rejectPendingUser(id);
+    if (!user) {
+      return sendError(res, 404, "NOT_FOUND", "Pending business user not found");
+    }
+
+    await removeUploadedProofByUrl(user.proofUrl);
+    res.json({ success: true, userId: user.id });
   });
 
   // Materials

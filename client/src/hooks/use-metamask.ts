@@ -1,23 +1,62 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 
 export type ChainTxResult = {
   from: string;
-  to: string;
+  to?: string;
   txHash: string;
   chainId: number;
   blockNumber: number;
-  contractAddress: string;
+  contractAddress?: string;
 };
+
+type WalletTxRequest = {
+  txRequest: ethers.TransactionRequest;
+  contractAddress?: string;
+};
+
+function getEthereumProvider(): ethers.Eip1193Provider | undefined {
+  return window.ethereum as ethers.Eip1193Provider | undefined;
+}
 
 export function useMetaMask() {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    const ethereum = getEthereumProvider();
+    if (!ethereum) return;
+
+    const provider = new ethers.BrowserProvider(ethereum);
+
+    void provider.send("eth_accounts", []).then((accounts: string[]) => {
+      setAddress(accounts[0] ?? null);
+    }).catch((error) => {
+      console.error("Failed to read connected accounts:", error);
+    });
+
+    if (!("on" in ethereum) || typeof ethereum.on !== "function") {
+      return;
+    }
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      setAddress(accounts[0] ?? null);
+    };
+
+    ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      if ("removeListener" in ethereum && typeof ethereum.removeListener === "function") {
+        ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      }
+    };
+  }, []);
+
   const connect = useCallback(async () => {
-    const ethereum = window.ethereum as ethers.Eip1193Provider | undefined;
+    const ethereum = getEthereumProvider();
+
     if (!ethereum) {
       toast({
         title: "MetaMask Not Found",
@@ -29,16 +68,21 @@ export function useMetaMask() {
 
     try {
       setIsConnecting(true);
+
       const provider = new ethers.BrowserProvider(ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
+      const walletAddress = accounts[0] ?? null;
+
+      setAddress(walletAddress);
+
+      if (walletAddress) {
         toast({
           title: "Wallet Connected",
-          description: `Connected to ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`,
+          description: `Connected to ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
         });
-        return accounts[0];
       }
+
+      return walletAddress;
     } catch (err: any) {
       console.error(err);
       toast({
@@ -46,66 +90,44 @@ export function useMetaMask() {
         description: err.message || "Failed to connect to MetaMask.",
         variant: "destructive",
       });
+      return null;
     } finally {
       setIsConnecting(false);
     }
-    return null;
   }, [toast]);
 
   const sendTransaction = useCallback(
-    async (actionName: string): Promise<ChainTxResult> => {
-      const ethereum = window.ethereum as ethers.Eip1193Provider | undefined;
+    async (request: string | WalletTxRequest): Promise<ChainTxResult> => {
+      if (typeof request === "string") {
+        throw new Error(`No on-chain transaction is configured for "${request}" yet.`);
+      }
+
+      const ethereum = getEthereumProvider();
       if (!ethereum) {
-        throw new Error("MetaMask is required");
+        throw new Error("MetaMask is not available");
       }
 
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
-      const signerAddress = await signer.getAddress();
+      const txResponse = await signer.sendTransaction(request.txRequest);
+      const receipt = await txResponse.wait();
 
-      if (!address || address.toLowerCase() !== signerAddress.toLowerCase()) {
-        setAddress(signerAddress);
-      }
-
-      toast({
-        title: "Awaiting Signature...",
-        description: `Please sign the transaction for: ${actionName}`,
-      });
-
-      const tx = await signer.sendTransaction({
-        to: signerAddress,
-        value: 0n,
-      });
-
-      toast({
-        title: "Transaction Submitted",
-        description: `Hash: ${tx.hash.slice(0, 12)}...`,
-      });
-
-      const receipt = await tx.wait();
-      if (!receipt || !receipt.blockNumber) {
-        throw new Error("Transaction was not mined");
+      if (!receipt) {
+        throw new Error("Transaction receipt was not returned");
       }
 
       const network = await provider.getNetwork();
-      const result: ChainTxResult = {
-        from: signerAddress,
-        to: tx.to ?? signerAddress,
-        txHash: tx.hash,
+
+      return {
+        from: signer.address,
+        to: txResponse.to ?? undefined,
+        txHash: txResponse.hash,
         chainId: Number(network.chainId),
         blockNumber: receipt.blockNumber,
-        contractAddress: tx.to ?? signerAddress,
+        contractAddress: request.contractAddress ?? txResponse.to ?? undefined,
       };
-
-      toast({
-        title: "Transaction Confirmed",
-        description: `Block #${receipt.blockNumber}`,
-        className: "bg-teal-950 border-teal-500 text-teal-100",
-      });
-
-      return result;
     },
-    [address, toast],
+    [],
   );
 
   return { address, isConnecting, connect, sendTransaction };

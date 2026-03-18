@@ -313,9 +313,12 @@ export const uploadedDocuments = mysqlTable("uploaded_documents", {
   entityType: mysqlEnum("entity_type", documentEntityTypeValues).notNull(),
   entityId: int("entity_id").notNull(),
   documentType: mysqlEnum("document_type", documentTypeValues).notNull(),
+  originalFilename: varchar("original_filename", { length: 255 }),
+  storedFilename: varchar("stored_filename", { length: 255 }),
   fileUrl: text("file_url").notNull(),
   fileHash: varchar("file_hash", { length: 128 }),
   mimeType: varchar("mime_type", { length: 128 }),
+  size: int("size"),
   status: mysqlEnum("status", documentStatusValues).notNull().default("uploaded"),
   verifiedByUserId: int("verified_by_user_id").references(() => users.id, { onDelete: "set null" }),
   uploadedAt: timestamp("uploaded_at", { mode: "date" }).defaultNow(),
@@ -504,22 +507,47 @@ export type InsertUploadedDocument = z.infer<typeof insertUploadedDocumentSchema
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
-export type LoginRequest = z.infer<typeof loginSchema>;
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
 });
 
+export const publicUserSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  email: z.string().email(),
+  phone: z.string(),
+  organization: z.string(),
+  role: z.enum(roleValues),
+  proofUrl: z.string().nullable(),
+  walletAddress: z.string().nullable(),
+  approvalTxHash: z.string().nullable(),
+  approvalChainId: z.number().int().nullable(),
+  approvalBlockNumber: z.number().int().nullable(),
+  approvalContractAddress: z.string().nullable(),
+  isApproved: z.boolean().nullable(),
+  createdAt: z.date().nullable(),
+});
+
+export const approveUserRequestSchema = z.object({
+  walletAddress: z.string().optional(),
+  txHash: z.string().optional(),
+  chainId: z.number().int().positive().optional(),
+  blockNumber: z.number().int().positive().optional(),
+  contractAddress: z.string().optional(),
+});
+
+export const rejectUserResponseSchema = z.object({
+  success: z.literal(true),
+  userId: z.number().int(),
+});
+
+export type LoginRequest = z.infer<typeof loginSchema>;
+export type PublicUser = z.infer<typeof publicUserSchema>;
+export type ApproveUserRequest = z.infer<typeof approveUserRequestSchema>;
+export type RejectUserResponse = z.infer<typeof rejectUserResponseSchema>;
+
 export type AuthResponse = {
   token: string;
-  user: User;
-};
-
-export type ApproveUserRequest = {
-  walletAddress?: string;
-  isApproved: boolean;
-  txHash?: string;
-  chainId?: number;
-  blockNumber?: number;
-  contractAddress?: string;
+  user: PublicUser;
 };

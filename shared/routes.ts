@@ -1,12 +1,15 @@
 import { z } from 'zod';
 import { 
-  users, roleValues,
+  roleValues,
   insertMaterialSchema, materials,
   insertMedicineBatchSchema, medicineBatches,
   insertTransferSchema, transfers,
   insertAuthenticityReportSchema, authenticityReports,
   insertFeedbackSchema, feedback,
   loginSchema,
+  publicUserSchema,
+  approveUserRequestSchema,
+  rejectUserResponseSchema,
 } from './schema';
 
 export const errorSchemas = {
@@ -74,32 +77,37 @@ export const blockchainTxMetaSchema = z.object({
   contractAddress: z.string().min(1),
 });
 
+const optionalTrimmedString = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}, z.string().min(1).optional());
+
+const optionalPositiveInt = z.preprocess((value) => {
+  if (value === "" || value === null || typeof value === "undefined") {
+    return undefined;
+  }
+  return value;
+}, z.coerce.number().int().positive().optional());
+
 export const registerRequestSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
   email: z.string().email(),
   password: z.string().min(6),
-  phone: z.string().min(1),
-  organization: z.string().optional(),
+  phone: z.string().trim().min(1),
+  organization: optionalTrimmedString,
   role: z.enum(roleValues),
-  proofUrl: z.string().optional(),
-  walletAddress: z.string().optional(),
-  registrationTx: blockchainTxMetaSchema.optional(),
-  profile: z
-    .object({
-      licenseNumber: z.string().optional(),
-      permitNumber: z.string().optional(),
-      facilityName: z.string().optional(),
-      distributionCenterName: z.string().optional(),
-      pharmacyName: z.string().optional(),
-    })
-    .optional(),
-  approvalDocument: z
-    .object({
-      fileName: z.string().min(1),
-      mimeType: z.string().min(1),
-      dataUrl: z.string().min(1),
-    })
-    .optional(),
+  proofUrl: optionalTrimmedString,
+  walletAddress: optionalTrimmedString,
+  approvalTxHash: optionalTrimmedString,
+  approvalChainId: optionalPositiveInt,
+  approvalBlockNumber: optionalPositiveInt,
+  approvalContractAddress: optionalTrimmedString,
+  licenseNumber: optionalTrimmedString,
+  permitNumber: optionalTrimmedString,
+  facilityName: optionalTrimmedString,
+  distributionCenterName: optionalTrimmedString,
+  pharmacyName: optionalTrimmedString,
 });
 
 export const api = {
@@ -109,7 +117,7 @@ export const api = {
       path: '/api/auth/register' as const,
       input: registerRequestSchema,
       responses: {
-        201: z.object({ token: z.string(), user: z.custom<typeof users.$inferSelect>() }),
+        201: z.object({ token: z.string(), user: publicUserSchema }),
         400: errorSchemas.validation,
       }
     },
@@ -118,7 +126,7 @@ export const api = {
       path: '/api/auth/login' as const,
       input: loginSchema,
       responses: {
-        200: z.object({ token: z.string(), user: z.custom<typeof users.$inferSelect>() }),
+        200: z.object({ token: z.string(), user: publicUserSchema }),
         401: errorSchemas.unauthorized,
       }
     },
@@ -126,7 +134,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/auth/me' as const,
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: publicUserSchema,
         401: errorSchemas.unauthorized,
       }
     }
@@ -136,23 +144,33 @@ export const api = {
       method: 'GET' as const,
       path: '/api/admin/users' as const,
       responses: {
-        200: z.array(z.custom<typeof users.$inferSelect>()),
+        200: z.array(publicUserSchema),
+        403: errorSchemas.forbidden,
+      }
+    },
+    pendingUsers: {
+      method: 'GET' as const,
+      path: '/api/admin/pending-users' as const,
+      responses: {
+        200: z.array(publicUserSchema),
         403: errorSchemas.forbidden,
       }
     },
     approveUser: {
       method: 'PATCH' as const,
       path: '/api/admin/users/:id/approve' as const,
-      input: z.object({
-        isApproved: z.boolean(),
-        walletAddress: z.string().optional(),
-        txHash: z.string().optional(),
-        chainId: z.number().int().positive().optional(),
-        blockNumber: z.number().int().positive().optional(),
-        contractAddress: z.string().optional(),
-      }),
+      input: approveUserRequestSchema,
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: publicUserSchema,
+        403: errorSchemas.forbidden,
+        404: errorSchemas.notFound,
+      }
+    },
+    rejectUser: {
+      method: 'PATCH' as const,
+      path: '/api/admin/users/:id/reject' as const,
+      responses: {
+        200: rejectUserResponseSchema,
         403: errorSchemas.forbidden,
         404: errorSchemas.notFound,
       }

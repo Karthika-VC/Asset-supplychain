@@ -1,0 +1,16 @@
+{
+  "network": "ganache",
+  "chainId": 1337,
+  "deployedAt": "2026-03-15T05:17:28.459Z",
+  "deployer": "0x293e4b962463c3B2cab3399Ae941D72fa9F83A5f",
+  "contracts": {
+    "UserRegistry": {
+      "address": "0x8503c679540cEbd0b69fc71A695d783F16212B2D",
+      "artifact": "contracts/artifacts/UserRegistry.json"
+    },
+    "MedicineTracking": {
+      "address": "0x1c0BB980C6E7bb682109e0EB02019695c0f2bAad",
+      "artifact": "contracts/artifacts/MedicineTracking.json"
+    }
+  }
+}

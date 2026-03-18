@@ -7,6 +7,7 @@ type SolcInput = {
   sources: Record<string, { content: string }>;
   settings: {
     optimizer: { enabled: boolean; runs: number };
+    evmVersion?: string;
     outputSelection: Record<string, Record<string, string[]>>;
   };
 };
@@ -31,7 +32,11 @@ async function compileContracts() {
       "MedicineTracking.sol": { content: medicineTrackingSource },
     },
     settings: {
-      optimizer: { enabled: true, runs: 200 },
+      optimizer: {
+         enabled: true, 
+          runs: 200 
+      },
+      evmVersion: "paris",
       outputSelection: {
         "*": {
           "*": ["abi", "evm.bytecode.object"],
