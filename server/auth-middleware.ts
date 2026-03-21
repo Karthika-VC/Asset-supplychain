@@ -7,6 +7,7 @@ export type AuthenticatedUser = {
   role: string;
   email: string;
   isApproved: boolean | null;
+  accountStatus: string;
 };
 
 declare global {
@@ -57,6 +58,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     role: user.role,
     email: user.email,
     isApproved: user.isApproved ?? null,
+    accountStatus: user.accountStatus,
   };
 
   next();
@@ -82,7 +84,20 @@ export function requireApprovedBusiness(req: Request, res: Response, next: NextF
   }
 
   if (req.user.role !== "customer" && req.user.role !== "admin" && !req.user.isApproved) {
-    return sendError(res, 403, "APPROVAL_REQUIRED", "Business account approval is required");
+    const message =
+      req.user.accountStatus === "rejected"
+        ? "Your account registration was rejected. Please contact the administrator."
+        : "Your account is pending admin approval.";
+
+    return res.status(403).json({
+      error: {
+        code: req.user.accountStatus === "rejected" ? "ACCOUNT_REJECTED" : "APPROVAL_REQUIRED",
+        message,
+        status: req.user.accountStatus,
+        requestId: res.locals.requestId ?? null,
+        timestamp: new Date().toISOString(),
+      },
+    });
   }
 
   next();

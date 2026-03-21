@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { 
   roleValues,
+  userAccountStatusValues,
   insertMaterialSchema, materials,
   insertMedicineBatchSchema, medicineBatches,
   insertTransferSchema, transfers,
@@ -90,13 +91,35 @@ const optionalPositiveInt = z.preprocess((value) => {
   return value;
 }, z.coerce.number().int().positive().optional());
 
+const roleAliasMap: Record<string, typeof roleValues[number]> = {
+  admin: "admin",
+  customer: "customer",
+  manufacturer: "manufacturer",
+  distributor: "distributor",
+  pharmacy: "pharmacy",
+  material_distributor: "material_distributor",
+  "material distributor": "material_distributor",
+  "raw material supplier": "material_distributor",
+  raw_material_supplier: "material_distributor",
+  "material supplier": "material_distributor",
+};
+
+const normalizedRoleSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return roleAliasMap[normalized] ?? value;
+}, z.enum(roleValues));
+
 export const registerRequestSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().email(),
   password: z.string().min(6),
   phone: z.string().trim().min(1),
   organization: optionalTrimmedString,
-  role: z.enum(roleValues),
+  role: normalizedRoleSchema,
   proofUrl: optionalTrimmedString,
   walletAddress: optionalTrimmedString,
   approvalTxHash: optionalTrimmedString,
@@ -110,6 +133,24 @@ export const registerRequestSchema = z.object({
   pharmacyName: optionalTrimmedString,
 });
 
+export const registerResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  requiresApproval: z.boolean(),
+  token: z.string().optional(),
+  user: publicUserSchema,
+});
+
+export const accountBlockedErrorSchema = z.object({
+  error: z.object({
+    code: z.enum(["ACCOUNT_PENDING_APPROVAL", "ACCOUNT_REJECTED", "APPROVAL_REQUIRED"]),
+    message: z.string(),
+    status: z.enum(userAccountStatusValues).optional(),
+    requestId: z.string().nullable().optional(),
+    timestamp: z.string().optional(),
+  }),
+});
+
 export const api = {
   auth: {
     register: {
@@ -117,8 +158,9 @@ export const api = {
       path: '/api/auth/register' as const,
       input: registerRequestSchema,
       responses: {
-        201: z.object({ token: z.string(), user: publicUserSchema }),
+        201: registerResponseSchema,
         400: errorSchemas.validation,
+        409: errorSchemas.base,
       }
     },
     login: {
@@ -128,6 +170,7 @@ export const api = {
       responses: {
         200: z.object({ token: z.string(), user: publicUserSchema }),
         401: errorSchemas.unauthorized,
+        403: accountBlockedErrorSchema,
       }
     },
     me: {

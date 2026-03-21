@@ -43,7 +43,7 @@ function toPublicUser<T extends { password: string }>(user: T) {
 }
 
 function isBusinessRole(role: string): boolean {
-  return role !== "customer";
+  return role !== "customer" && role !== "admin";
 }
 
 function mapDocumentEntityType(role: string): "manufacturer" | "distributor" | "pharmacy" | "user" {
@@ -63,12 +63,6 @@ async function removeUploadedFile(filePath: string | undefined): Promise<void> {
       console.error("Failed to remove uploaded file:", error);
     }
   }
-}
-
-async function removeUploadedProofByUrl(proofUrl: string | null | undefined): Promise<void> {
-  if (!proofUrl || !proofUrl.startsWith("/uploads/")) return;
-  const localPath = path.resolve(process.cwd(), proofUrl.slice(1));
-  await removeUploadedFile(localPath);
 }
 
 function readParam(value: string | string[] | undefined): string | null {
@@ -135,9 +129,23 @@ export async function registerRoutes(
       });
     }
 
+    if ((role === "manufacturer" || role === "distributor" || role === "material_distributor") && !parsed.data.licenseNumber) {
+      await removeUploadedFile(req.file?.path);
+      return sendError(res, 400, "VALIDATION_ERROR", "License number is required for this role", {
+        field: "licenseNumber",
+      });
+    }
+
+    if (role === "pharmacy" && !parsed.data.permitNumber) {
+      await removeUploadedFile(req.file?.path);
+      return sendError(res, 400, "VALIDATION_ERROR", "Permit number is required for pharmacy registration", {
+        field: "permitNumber",
+      });
+    }
+
     try {
       const hashedPassword = await hashPassword(parsed.data.password);
-      const user = await storage.createUser({
+      const user = await storage.createRegistration({
         name: parsed.data.name,
         email: parsed.data.email,
         password: hashedPassword,
@@ -147,6 +155,7 @@ export async function registerRoutes(
         proofUrl,
         walletAddress: parsed.data.walletAddress,
         isApproved: businessRole ? false : true,
+        accountStatus: businessRole ? "pending" : "active",
         ...(approvalTx
           ? {
               approvalTxHash: approvalTx.txHash,
@@ -155,67 +164,49 @@ export async function registerRoutes(
               approvalContractAddress: approvalTx.contractAddress,
             }
           : {}),
+      },
+      businessRole
+        ? {
+            facilityName: parsed.data.facilityName || organizationName,
+            distributionCenterName: parsed.data.distributionCenterName || organizationName,
+            pharmacyName: parsed.data.pharmacyName || organizationName,
+            licenseNumber: parsed.data.licenseNumber,
+            permitNumber: parsed.data.permitNumber,
+            registrationTxHash: approvalTx?.txHash,
+            registrationChainId: approvalTx?.chainId,
+            registrationBlockNumber: approvalTx?.blockNumber,
+            registrationContractAddress: approvalTx?.contractAddress,
+          }
+        : undefined,
+      businessRole && req.file && proofUrl
+        ? {
+            entityType: mapDocumentEntityType(role),
+            documentType: "business_license",
+            originalFilename: req.file.originalname,
+            storedFilename: path.basename(req.file.path),
+            fileUrl: proofUrl,
+            mimeType: req.file.mimetype,
+            size: req.file.size,
+          }
+        : undefined);
+
+      const token = businessRole ? undefined : signAuthToken({ userId: user.id, role: user.role });
+      const message = businessRole
+        ? "Registration submitted successfully. Your account is pending admin approval."
+        : "Registration successful.";
+
+      res.status(201).json({
+        success: true,
+        message,
+        requiresApproval: businessRole,
+        ...(token ? { token } : {}),
+        user: toPublicUser(user),
       });
-
-      if (role === "manufacturer") {
-        await storage.createManufacturerProfile({
-          userId: user.id,
-          facilityName: parsed.data.facilityName || organizationName,
-          licenseNumber: parsed.data.licenseNumber || "PENDING",
-          status: "pending",
-          registrationTxHash: approvalTx?.txHash,
-          registrationChainId: approvalTx?.chainId,
-          registrationBlockNumber: approvalTx?.blockNumber,
-          registrationContractAddress: approvalTx?.contractAddress,
-        });
-      } else if (role === "distributor" || role === "material_distributor") {
-        await storage.createDistributorProfile({
-          userId: user.id,
-          distributionCenterName: parsed.data.distributionCenterName || organizationName,
-          licenseNumber: parsed.data.licenseNumber || "PENDING",
-          status: "pending",
-          registrationTxHash: approvalTx?.txHash,
-          registrationChainId: approvalTx?.chainId,
-          registrationBlockNumber: approvalTx?.blockNumber,
-          registrationContractAddress: approvalTx?.contractAddress,
-        });
-      } else if (role === "pharmacy") {
-        await storage.createPharmacyProfile({
-          userId: user.id,
-          pharmacyName: parsed.data.pharmacyName || organizationName,
-          permitNumber: parsed.data.permitNumber || "PENDING",
-          status: "pending",
-          registrationTxHash: approvalTx?.txHash,
-          registrationChainId: approvalTx?.chainId,
-          registrationBlockNumber: approvalTx?.blockNumber,
-          registrationContractAddress: approvalTx?.contractAddress,
-        });
-      } else if (role === "customer") {
-        await storage.createCustomerProfile({
-          userId: user.id,
-          status: "active",
-        });
-      }
-
-      if (businessRole && req.file && proofUrl) {
-        await storage.createUploadedDocument({
-          uploaderUserId: user.id,
-          entityType: mapDocumentEntityType(role),
-          entityId: user.id,
-          documentType: "business_license",
-          originalFilename: req.file.originalname,
-          storedFilename: path.basename(req.file.path),
-          fileUrl: proofUrl,
-          mimeType: req.file.mimetype,
-          size: req.file.size,
-          status: "uploaded",
-        });
-      }
-
-      const token = signAuthToken({ userId: user.id, role: user.role });
-      res.status(201).json({ token, user: toPublicUser(user) });
     } catch (error) {
       await removeUploadedFile(req.file?.path);
+      if ((error as any)?.code === "ER_DUP_ENTRY") {
+        return sendError(res, 409, "EMAIL_EXISTS", "Email already registered");
+      }
       next(error);
     }
   });
@@ -238,6 +229,34 @@ export async function registerRoutes(
     const passwordOk = await verifyPassword(parsed.data.password, user.password);
     if (!passwordOk) {
       return sendError(res, 401, "INVALID_CREDENTIALS", "Invalid email or password");
+    }
+
+    if (isBusinessRole(user.role) && user.accountStatus === "pending") {
+      return res.status(403).json({
+        error: {
+          code: "ACCOUNT_PENDING_APPROVAL",
+          message: "Your account is pending admin approval.",
+          status: user.accountStatus,
+          requestId: res.locals.requestId ?? null,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (isBusinessRole(user.role) && user.accountStatus === "rejected") {
+      return res.status(403).json({
+        error: {
+          code: "ACCOUNT_REJECTED",
+          message: "Your account registration was rejected. Please contact the administrator.",
+          status: user.accountStatus,
+          requestId: res.locals.requestId ?? null,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (user.role === "customer" && user.accountStatus === "disabled") {
+      return sendError(res, 403, "FORBIDDEN", "Your account is disabled");
     }
 
     const token = signAuthToken({ userId: user.id, role: user.role });
@@ -303,7 +322,6 @@ export async function registerRoutes(
       return sendError(res, 404, "NOT_FOUND", "Pending business user not found");
     }
 
-    await removeUploadedProofByUrl(user.proofUrl);
     res.json({ success: true, userId: user.id });
   });
 
@@ -551,6 +569,7 @@ export async function registerRoutes(
         organization: "PharmaChain Org",
         role: "admin",
         isApproved: true,
+        accountStatus: "active",
       });
       console.log("Seeded default admin user");
     }

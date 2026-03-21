@@ -14,6 +14,17 @@ export async function getApiErrorMessage(
   fallbackMessage: string,
 ): Promise<string> {
   const payload = (await response.json().catch(() => null)) as ApiErrorResponse | null;
+  const details = payload?.error?.details as
+    | {
+        field?: string;
+        issue?: string;
+      }
+    | undefined;
+
+  if (payload?.error?.message && details?.field && details?.issue) {
+    return `${payload.error.message}: ${details.field} ${details.issue}`;
+  }
+
   if (payload?.error?.message) return payload.error.message;
   if (payload?.message) return payload.message;
   return fallbackMessage;

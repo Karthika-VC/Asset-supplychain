@@ -24,6 +24,8 @@ export const roleValues = [
   "customer",
 ] as const;
 
+export const userAccountStatusValues = ["pending", "approved", "rejected", "active", "disabled"] as const;
+
 export const manufacturerStatusValues = ["pending", "approved", "suspended"] as const;
 export const distributorStatusValues = ["pending", "approved", "suspended"] as const;
 export const pharmacyStatusValues = ["pending", "approved", "suspended"] as const;
@@ -91,6 +93,7 @@ export const users = mysqlTable("users", {
   approvalBlockNumber: int("approval_block_number"),
   approvalContractAddress: varchar("approval_contract_address", { length: 255 }),
   isApproved: boolean("is_approved").default(false),
+  accountStatus: mysqlEnum("account_status", userAccountStatusValues).notNull().default("pending"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 }, (table) => ({
   emailUniqueIdx: uniqueIndex("users_email_unique_idx").on(table.email),
@@ -526,7 +529,8 @@ export const publicUserSchema = z.object({
   approvalBlockNumber: z.number().int().nullable(),
   approvalContractAddress: z.string().nullable(),
   isApproved: z.boolean().nullable(),
-  createdAt: z.date().nullable(),
+  accountStatus: z.enum(userAccountStatusValues),
+  createdAt: z.coerce.date().nullable(),
 });
 
 export const approveUserRequestSchema = z.object({

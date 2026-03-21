@@ -1,8 +1,18 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import type { InsertFeedback } from "@shared/schema";
 import { authFetch } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/api-error";
+export function useFeedback() {
+  return useQuery({
+    queryKey: [api.feedback.list.path],
+    queryFn: async () => {
+      const res = await authFetch(api.feedback.list.path);
+      if (!res.ok) throw new Error(await getApiErrorMessage(res, "Failed to fetch feedback"));
+      return api.feedback.list.responses[200].parse(await res.json());
+    },
+  });
+}
 
 export function useCreateFeedback() {
   const queryClient = useQueryClient();

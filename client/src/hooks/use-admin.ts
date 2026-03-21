@@ -16,6 +16,19 @@ export function usePendingUsers() {
   });
 }
 
+export function useUsers() {
+  return useQuery({
+    queryKey: [api.admin.users.path],
+    queryFn: async () => {
+      const res = await authFetch(api.admin.users.path);
+      if (!res.ok) {
+        throw new Error(await getApiErrorMessage(res, "Failed to fetch users"));
+      }
+      return api.admin.users.responses[200].parse(await res.json());
+    },
+  });
+}
+
 export function useApproveUser() {
   const queryClient = useQueryClient();
 

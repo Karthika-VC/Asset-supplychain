@@ -1,6 +1,5 @@
 export function setToken(newToken: string) {
   localStorage.setItem("token", newToken);
-  console.log("TOKEN SAVED:", newToken);
 }
 
 export function clearToken() {
@@ -9,13 +8,18 @@ export function clearToken() {
 
 export async function authFetch(input: RequestInfo, init: RequestInit = {}) {
   const token = localStorage.getItem("token");
-  console.log("TOKEN USED:", token);
+  const headers = new Headers(init.headers || {});
+
+  if (typeof init.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   return fetch(input, {
     ...init,
-    headers: {
-      ...(init.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers,
   });
 }

@@ -78,19 +78,27 @@ export function useRegister() {
 
       const data = api.auth.register.responses[201].parse(await res.json());
 
-      setToken(data.token);
-      return data.user;
+      if (data.token) {
+        setToken(data.token);
+      }
+
+      return data;
     },
-    onSuccess: async (user) => {
-      queryClient.setQueryData([api.auth.me.path], user);
+    onSuccess: async (result) => {
+      if (result.token) {
+        queryClient.setQueryData([api.auth.me.path], result.user);
 
-      await queryClient.invalidateQueries({
-        queryKey: [api.auth.me.path],
-      });
+        await queryClient.invalidateQueries({
+          queryKey: [api.auth.me.path],
+        });
 
-      if (user.role === "admin") setLocation("/admin");
-      else if (user.role === "customer") setLocation("/portal");
-      else setLocation("/dashboard");
+        if (result.user.role === "admin") setLocation("/admin");
+        else if (result.user.role === "customer") setLocation("/portal");
+        else setLocation("/dashboard");
+        return;
+      }
+
+      queryClient.setQueryData([api.auth.me.path], null);
     },
   });
 }

@@ -16,6 +16,28 @@ import {
 } from "@shared/schema";
 import { and, desc, eq, ne } from "drizzle-orm";
 
+export type RegistrationProfileInput = {
+  facilityName?: string;
+  distributionCenterName?: string;
+  pharmacyName?: string;
+  licenseNumber?: string;
+  permitNumber?: string;
+  registrationTxHash?: string;
+  registrationChainId?: number;
+  registrationBlockNumber?: number;
+  registrationContractAddress?: string;
+};
+
+export type RegistrationDocumentInput = {
+  entityType: "manufacturer" | "distributor" | "pharmacy" | "user";
+  documentType: "business_license";
+  originalFilename?: string | null;
+  storedFilename?: string | null;
+  fileUrl: string;
+  mimeType?: string | null;
+  size?: number | null;
+};
+
 export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
@@ -34,6 +56,12 @@ export interface IStorage {
     },
   ): Promise<User | undefined>;
   rejectPendingUser(id: number): Promise<User | undefined>;
+  createRegistration(
+    user: InsertUser,
+    profile?: RegistrationProfileInput,
+    document?: RegistrationDocumentInput,
+  ): Promise<User>;
+  getBusinessStatusByUser(role: string, userId: number): Promise<string | null>;
   
   // Materials
   getMaterials(): Promise<Material[]>;
@@ -122,10 +150,83 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(and(
         eq(users.isApproved, false),
+        eq(users.accountStatus, "pending"),
         ne(users.role, "customer"),
         ne(users.role, "admin"),
       ))
       .orderBy(desc(users.createdAt), desc(users.id));
+  }
+
+  async createRegistration(
+    user: InsertUser,
+    profile?: RegistrationProfileInput,
+    document?: RegistrationDocumentInput,
+  ): Promise<User> {
+    return db.transaction(async (tx) => {
+      const [{ id: userId }] = await tx.insert(users).values(user).$returningId();
+
+      if (user.role === "manufacturer") {
+        await tx.insert(manufacturers).values({
+          userId,
+          facilityName: profile?.facilityName ?? user.organization,
+          licenseNumber: profile?.licenseNumber ?? "PENDING",
+          registrationTxHash: profile?.registrationTxHash,
+          registrationChainId: profile?.registrationChainId,
+          registrationBlockNumber: profile?.registrationBlockNumber,
+          registrationContractAddress: profile?.registrationContractAddress,
+          status: user.isApproved ? "approved" : "pending",
+        });
+      } else if (user.role === "distributor" || user.role === "material_distributor") {
+        await tx.insert(distributors).values({
+          userId,
+          distributionCenterName: profile?.distributionCenterName ?? user.organization,
+          licenseNumber: profile?.licenseNumber ?? "PENDING",
+          registrationTxHash: profile?.registrationTxHash,
+          registrationChainId: profile?.registrationChainId,
+          registrationBlockNumber: profile?.registrationBlockNumber,
+          registrationContractAddress: profile?.registrationContractAddress,
+          status: user.isApproved ? "approved" : "pending",
+        });
+      } else if (user.role === "pharmacy") {
+        await tx.insert(pharmacies).values({
+          userId,
+          pharmacyName: profile?.pharmacyName ?? user.organization,
+          permitNumber: profile?.permitNumber ?? "PENDING",
+          registrationTxHash: profile?.registrationTxHash,
+          registrationChainId: profile?.registrationChainId,
+          registrationBlockNumber: profile?.registrationBlockNumber,
+          registrationContractAddress: profile?.registrationContractAddress,
+          status: user.isApproved ? "approved" : "pending",
+        });
+      } else if (user.role === "customer") {
+        await tx.insert(customers).values({
+          userId,
+          status: "active",
+        });
+      }
+
+      if (document) {
+        await tx.insert(uploadedDocuments).values({
+          uploaderUserId: userId,
+          entityType: document.entityType,
+          entityId: userId,
+          documentType: document.documentType,
+          originalFilename: document.originalFilename ?? null,
+          storedFilename: document.storedFilename ?? null,
+          fileUrl: document.fileUrl,
+          mimeType: document.mimeType ?? null,
+          size: document.size ?? null,
+          status: "uploaded",
+        });
+      }
+
+      const [createdUser] = await tx.select().from(users).where(eq(users.id, userId));
+      if (!createdUser) {
+        throw new Error("Failed to create user");
+      }
+
+      return createdUser;
+    });
   }
 
   async approveUser(
@@ -138,43 +239,54 @@ export class DatabaseStorage implements IStorage {
       contractAddress?: string;
     },
   ): Promise<User | undefined> {
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(and(
-        eq(users.id, id),
-        eq(users.isApproved, false),
-        ne(users.role, "customer"),
-        ne(users.role, "admin"),
-      ));
+    return db.transaction(async (tx) => {
+      const [existingUser] = await tx
+        .select()
+        .from(users)
+        .where(and(
+          eq(users.id, id),
+          eq(users.isApproved, false),
+          eq(users.accountStatus, "pending"),
+          ne(users.role, "customer"),
+          ne(users.role, "admin"),
+        ));
 
-    if (!existingUser) {
-      return undefined;
-    }
+      if (!existingUser) {
+        return undefined;
+      }
 
-    await db
-      .update(users)
-      .set({
-        isApproved: true,
-        ...(approval?.walletAddress ? { walletAddress: approval.walletAddress } : {}),
-        ...(approval?.txHash ? { approvalTxHash: approval.txHash } : {}),
-        ...(typeof approval?.chainId === "number" ? { approvalChainId: approval.chainId } : {}),
-        ...(typeof approval?.blockNumber === "number" ? { approvalBlockNumber: approval.blockNumber } : {}),
-        ...(approval?.contractAddress ? { approvalContractAddress: approval.contractAddress } : {}),
-      })
-      .where(eq(users.id, id));
+      await tx
+        .update(users)
+        .set({
+          isApproved: true,
+          accountStatus: "approved",
+          ...(approval?.walletAddress ? { walletAddress: approval.walletAddress } : {}),
+          ...(approval?.txHash ? { approvalTxHash: approval.txHash } : {}),
+          ...(typeof approval?.chainId === "number" ? { approvalChainId: approval.chainId } : {}),
+          ...(typeof approval?.blockNumber === "number" ? { approvalBlockNumber: approval.blockNumber } : {}),
+          ...(approval?.contractAddress ? { approvalContractAddress: approval.contractAddress } : {}),
+        })
+        .where(eq(users.id, id));
 
-    await this.updateBusinessProfileStatusByUser(existingUser.role, existingUser.id, true);
-    await db
-      .update(uploadedDocuments)
-      .set({
-        status: "verified",
-        verifiedAt: new Date(),
-      })
-      .where(eq(uploadedDocuments.uploaderUserId, id));
+      if (existingUser.role === "manufacturer") {
+        await tx.update(manufacturers).set({ status: "approved" }).where(eq(manufacturers.userId, existingUser.id));
+      } else if (existingUser.role === "distributor" || existingUser.role === "material_distributor") {
+        await tx.update(distributors).set({ status: "approved" }).where(eq(distributors.userId, existingUser.id));
+      } else if (existingUser.role === "pharmacy") {
+        await tx.update(pharmacies).set({ status: "approved" }).where(eq(pharmacies.userId, existingUser.id));
+      }
 
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+      await tx
+        .update(uploadedDocuments)
+        .set({
+          status: "verified",
+          verifiedAt: new Date(),
+        })
+        .where(eq(uploadedDocuments.uploaderUserId, id));
+
+      const [user] = await tx.select().from(users).where(eq(users.id, id));
+      return user;
+    });
   }
 
   async rejectPendingUser(id: number): Promise<User | undefined> {
@@ -185,6 +297,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(users.id, id),
           eq(users.isApproved, false),
+          eq(users.accountStatus, "pending"),
           ne(users.role, "customer"),
           ne(users.role, "admin"),
         ));
@@ -193,10 +306,31 @@ export class DatabaseStorage implements IStorage {
         return undefined;
       }
 
-      await tx.delete(uploadedDocuments).where(eq(uploadedDocuments.uploaderUserId, id));
-      await tx.delete(users).where(eq(users.id, id));
+      await tx
+        .update(users)
+        .set({
+          accountStatus: "rejected",
+          isApproved: false,
+        })
+        .where(eq(users.id, id));
 
-      return user;
+      if (user.role === "manufacturer") {
+        await tx.update(manufacturers).set({ status: "suspended" }).where(eq(manufacturers.userId, id));
+      } else if (user.role === "distributor" || user.role === "material_distributor") {
+        await tx.update(distributors).set({ status: "suspended" }).where(eq(distributors.userId, id));
+      } else if (user.role === "pharmacy") {
+        await tx.update(pharmacies).set({ status: "suspended" }).where(eq(pharmacies.userId, id));
+      }
+
+      await tx
+        .update(uploadedDocuments)
+        .set({
+          status: "rejected",
+        })
+        .where(eq(uploadedDocuments.uploaderUserId, id));
+
+      const [updatedUser] = await tx.select().from(users).where(eq(users.id, id));
+      return updatedUser;
     });
   }
 
@@ -383,6 +517,42 @@ export class DatabaseStorage implements IStorage {
         .set({ status: approved ? "approved" : "suspended" })
         .where(eq(pharmacies.userId, userId));
     }
+  }
+
+  async getBusinessStatusByUser(role: string, userId: number): Promise<string | null> {
+    if (role === "manufacturer") {
+      const [profile] = await db
+        .select({ status: manufacturers.status })
+        .from(manufacturers)
+        .where(eq(manufacturers.userId, userId));
+      return profile?.status ?? null;
+    }
+
+    if (role === "distributor" || role === "material_distributor") {
+      const [profile] = await db
+        .select({ status: distributors.status })
+        .from(distributors)
+        .where(eq(distributors.userId, userId));
+      return profile?.status ?? null;
+    }
+
+    if (role === "pharmacy") {
+      const [profile] = await db
+        .select({ status: pharmacies.status })
+        .from(pharmacies)
+        .where(eq(pharmacies.userId, userId));
+      return profile?.status ?? null;
+    }
+
+    if (role === "customer") {
+      const [profile] = await db
+        .select({ status: customers.status })
+        .from(customers)
+        .where(eq(customers.userId, userId));
+      return profile?.status ?? null;
+    }
+
+    return null;
   }
 
   async createUploadedDocument(doc: InsertUploadedDocument): Promise<UploadedDocument> {

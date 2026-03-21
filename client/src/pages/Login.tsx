@@ -6,50 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useLogin } from "@/hooks/use-auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const { toast } = useToast();
+  const loginMutation = useLogin();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Invalid email or password");
-      }
-
-      const data = await res.json();
-
-      console.log("LOGIN RESPONSE:", data);
-
-      // ✅ SAVE TOKEN (THIS IS THE FIX)
-      localStorage.setItem("token", data.token);
-
-      console.log("TOKEN AFTER SAVE:", localStorage.getItem("token"));
-
-      // ✅ REDIRECT BASED ON ROLE
-      if (data.user.role === "admin") {
-        window.location.href = "/admin";
-      } else if (data.user.role === "customer") {
-        window.location.href = "/portal";
-      } else {
-        window.location.href = "/dashboard";
-      }
-
+      await loginMutation.mutateAsync({ email, password });
     } catch (err: any) {
+      const message = err?.message || "Unable to login.";
+      setFormError(message);
       toast({
         title: "Login Failed",
-        description: err.message || "Unable to login.",
+        description: message,
         variant: "destructive",
       });
     }
@@ -70,6 +47,12 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {formError ? (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {formError}
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white/80">Email</Label>
               <Input
@@ -96,9 +79,10 @@ export default function Login() {
 
             <Button
               type="submit"
+              disabled={loginMutation.isPending}
               className="w-full h-12 mt-4 text-lg rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-[0_0_20px_rgba(0,212,170,0.3)] border-none"
             >
-              Sign In
+              {loginMutation.isPending ? "Signing In..." : "Sign In"}
             </Button>
           </form>
 
